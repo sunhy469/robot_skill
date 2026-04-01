@@ -80,13 +80,15 @@ def cmd_init_all() -> Dict[str, Any]:
     return result
 
 
-def cmd_camera(save_path: Optional[str] = None) -> Dict[str, Any]:
+def cmd_camera(args: Namespace) -> Dict[str, Any]:
+    """获取相机图片并保存到本地。"""
     token = rc.ensure_ready()
     camera_data = rc.get_camera_jpg(token)
     jpg_path = rc.extract_camera_jpg_path(camera_data)
 
     result: Dict[str, Any] = {"camera_response": camera_data, "jpg_path": jpg_path}
 
+    save_path = args.out
     if save_path is None:
         references_dir = os.path.join(os.path.dirname(__file__), "..", "references")
         os.makedirs(references_dir, exist_ok=True)
@@ -99,7 +101,8 @@ def cmd_camera(save_path: Optional[str] = None) -> Dict[str, Any]:
     return result
 
 
-def cmd_close_robot() -> Dict[str, Any]:
+def cmd_close_robot(args: Namespace) -> Dict[str, Any]:
+    """关闭机器人并重置本地状态。"""
     result: Dict[str, Any] = {}
     state = rc.load_state()
     token = state.get("token", "") or ""
@@ -121,24 +124,61 @@ def cmd_close_robot() -> Dict[str, Any]:
     return result
 
 
-def cmd_grip_open() -> Dict[str, Any]: return rc.grip_open(rc.ensure_ready())
-def cmd_grip_close() -> Dict[str, Any]: return rc.grip_close(rc.ensure_ready())
-def cmd_grip_position(value: int) -> Dict[str, Any]: return rc.grip_position(rc.ensure_ready(), value)
-def cmd_perform(target: str, vel: int, acc: int, wait: int) -> Dict[str, Any]: return rc.perform(rc.ensure_ready(), target=target, vel=vel, acc=acc, wait=wait)
-def cmd_safe(target: str) -> Dict[str, Any]: return rc.return_to_safe(rc.ensure_ready(), target=target)
+def cmd_grip_open(args: Namespace) -> Dict[str, Any]:
+    """打开夹爪。"""
+    return rc.grip_open(rc.ensure_ready())
 
-def cmd_shutdown() -> Dict[str, Any]:
+
+def cmd_grip_close(args: Namespace) -> Dict[str, Any]:
+    """关闭夹爪。"""
+    return rc.grip_close(rc.ensure_ready())
+
+
+def cmd_grip_position(args: Namespace) -> Dict[str, Any]:
+    """夹爪移动到指定位置。"""
+    return rc.grip_position(rc.ensure_ready(), args.value)
+
+
+def cmd_perform(args: Namespace) -> Dict[str, Any]:
+    """执行区域动作。"""
+    return rc.perform(rc.ensure_ready(), target=args.target, vel=args.vel, acc=args.acc, wait=args.wait)
+
+
+def cmd_safe(args: Namespace) -> Dict[str, Any]:
+    """回到安全位。"""
+    return rc.return_to_safe(rc.ensure_ready(), target=args.target)
+
+def cmd_shutdown(args: Namespace) -> Dict[str, Any]:
+    """执行机器人急停。"""
     token = rc.ensure_token_ready()
     result = rc.shutdown_robot(token)
     rc.save_state(token=token, initialized=False)
     return result
 
 
-def cmd_status() -> Dict[str, Any]: return rc.load_state()
-def cmd_agv_goto_location(location: str) -> Dict[str, Any]: return rc.agv_goto_location(rc.ensure_ready(), location)
-def cmd_vehicle_stop() -> Dict[str, Any]: return rc.vehicle_stop(rc.ensure_ready())
-def cmd_vehicle_home() -> Dict[str, Any]: return rc.vehicle_home(rc.ensure_ready())
-def cmd_get_current_location() -> Dict[str, Any]: return rc.get_current_location(rc.ensure_ready())
+def cmd_status(args: Namespace) -> Dict[str, Any]:
+    """查看本地状态。"""
+    return rc.load_state()
+
+
+def cmd_agv_goto(args: Namespace) -> Dict[str, Any]:
+    """控制 AGV 前往指定站点。"""
+    return rc.agv_goto_location(rc.ensure_ready(), args.location)
+
+
+def cmd_vehicle_stop(args: Namespace) -> Dict[str, Any]:
+    """停止移动工具。"""
+    return rc.vehicle_stop(rc.ensure_ready())
+
+
+def cmd_vehicle_home(args: Namespace) -> Dict[str, Any]:
+    """移动工具回零。"""
+    return rc.vehicle_home(rc.ensure_ready())
+
+
+def cmd_vehicle_location(args: Namespace) -> Dict[str, Any]:
+    """获取当前移动工具位置。"""
+    return rc.get_current_location(rc.ensure_ready())
 
 
 # =========================

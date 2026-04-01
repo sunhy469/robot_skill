@@ -10,20 +10,7 @@ from typing import Any, Callable, Dict
 
 import robot_actions
 from robot_actions import (
-    cmd_agv_goto_location,
-    cmd_camera,
-    cmd_close_robot,
-    cmd_get_current_location,
-    cmd_grip_close,
-    cmd_grip_open,
-    cmd_grip_position,
     cmd_init_all,
-    cmd_perform,
-    cmd_safe,
-    cmd_shutdown,
-    cmd_status,
-    cmd_vehicle_home,
-    cmd_vehicle_stop,
 )
 from robot_core import RobotApiError
 
@@ -176,19 +163,6 @@ def main() -> int:
 
     command_handlers: Dict[str, Callable[[], Dict[str, Any]]] = {
         "init_all": cmd_init_all,
-        "grip_open": cmd_grip_open,
-        "grip_close": cmd_grip_close,
-        "grip_position": lambda: cmd_grip_position(args.value),
-        "perform": lambda: cmd_perform(args.target, args.vel, args.acc, args.wait),
-        "safe": lambda: cmd_safe(args.target),
-        "shutdown": cmd_shutdown,
-        "camera": lambda: cmd_camera(args.out),
-        "close_robot": cmd_close_robot,
-        "status": cmd_status,
-        "agv_goto": lambda: cmd_agv_goto_location(args.location),
-        "vehicle_stop": cmd_vehicle_stop,
-        "vehicle_home": cmd_vehicle_home,
-        "vehicle_location": cmd_get_current_location,
     }
 
     try:
