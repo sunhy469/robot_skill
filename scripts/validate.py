@@ -8,6 +8,7 @@ import logging
 import sys
 from typing import Any, Callable, Dict
 
+import robot_actions
 from robot_actions import (
     cmd_agv_goto_location,
     cmd_camera,
@@ -23,7 +24,6 @@ from robot_actions import (
     cmd_status,
     cmd_vehicle_home,
     cmd_vehicle_stop,
-    run_namespaced_command,
 )
 from robot_core import RobotApiError
 
@@ -195,7 +195,10 @@ def main() -> int:
         if args.command in command_handlers:
             result = command_handlers[args.command]()
         else:
-            result = run_namespaced_command(args.command, vars(args))
+            handler_name = f"cmd_{args.command}"
+            if not hasattr(robot_actions, handler_name):
+                raise RobotApiError(f"未知命令：{args.command}")
+            result = getattr(robot_actions, handler_name)(args)
 
         print(_json_dumps({"success": True, "command": args.command, "result": result}))
         return 0
