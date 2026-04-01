@@ -10,6 +10,7 @@ description: |
 
 ## 目标
 将用户自然语言请求映射为 `scripts/validate.py` 子命令，返回真实执行结果（JSON），保持可追溯、可复现。
+并保持 legacy 与 namespaced 两套指令风格融合：旧命令继续可用，新命令按前缀命名规范调用。
 
 ## 能力范围（与脚本严格一致）
 - 基础控制：`init_all`、`grip_open`、`grip_close`、`grip_position value`、`perform target [--vel] [--acc] [--wait]`、`safe [--target]`、`shutdown`、`camera [--out]`、`status`
@@ -27,6 +28,11 @@ description: |
   - `script_api_*`
   - `script_*`
   - `sync_*`
+
+## 融合原则（legacy + namespaced）
+- legacy 指令（如 `init_all`、`perform`、`camera`）保持原语义和默认行为，不做破坏性替换。
+- namespaced 指令用于扩展能力，命令名与后端接口分组对齐。
+- 两类指令统一通过 `python scripts/validate.py <subcommand>` 调用，统一返回 JSON 包装。
 
 > 只调用 validate.py 已封装子命令；不自动扩展未封装接口。
 

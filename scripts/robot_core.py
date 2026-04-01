@@ -180,41 +180,41 @@ def with_token(token: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str
 
 # --- authority ---
 def generate_token(forced: int = 1) -> Dict[str, Any]:
-    return request_json("POST", "/authority/generate/", {"robot": "", "mode": "", "serial": "", "forced": int(forced)})
+    return authority_generate(robot="", mode="", serial="", forced=int(forced))
 
 
 def consume_token(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/authority/consume/", with_token(token, {}))
+    return authority_consume(token)
 
 
 def is_accessible(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/authority/isAccessible/", with_token(token, {}))
+    return authority_is_accessible(token)
 
 
 def is_controller(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/authority/isController/", with_token(token, {}))
+    return authority_is_controller(token)
 
 
 # --- initialization ---
 def initialize_robot(token: str, homed: int = 1, forced: int = 0) -> Dict[str, Any]:
-    return request_json("POST", "/initialization/initialize/", with_token(token, {"homed": int(homed), "forced": int(forced)}))
+    return init_initialize(token, homed=int(homed), forced=int(forced))
 
 
 def finalize_robot(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/initialization/finalize/", with_token(token, {}))
+    return init_finalize(token)
 
 
 def is_initialized() -> Dict[str, Any]:
-    return request_json("POST", "/initialization/isInitialized/", {})
+    return init_is_initialized()
 
 
 # --- actionControl ---
 def vehicle_reset(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/actionControl/vehicleReset/", with_token(token, {}))
+    return action_vehicle_reset(token)
 
 
 def grip_control(token: str, action_type: str, value: int = 0) -> Dict[str, Any]:
-    return request_json("POST", "/actionControl/gripControl/", with_token(token, {"actionType": action_type, "value": value}))
+    return action_grip_control(token, action_type=action_type, value=value)
 
 
 def grip_open(token: str) -> Dict[str, Any]:
@@ -230,19 +230,19 @@ def grip_position(token: str, value: int) -> Dict[str, Any]:
 
 
 def get_camera_jpg(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/actionControl/getCameraJpg/", with_token(token, {}))
+    return action_get_camera_jpg(token)
 
 
 def agv_goto_location(token: str, location: str) -> Dict[str, Any]:
-    return request_json("POST", "/actionControl/agvGotoLocation/", with_token(token, {"location": str(location)}))
+    return action_agv_goto_location(token, location=str(location))
 
 
 def vehicle_stop(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/actionControl/vehicleStop/", with_token(token, {}))
+    return action_vehicle_stop(token)
 
 
 def vehicle_home(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/actionControl/vehicleHome/", with_token(token, {}))
+    return action_vehicle_home(token)
 
 
 # --- command ---
@@ -275,21 +275,21 @@ def perform(token: str, target: str, vel: int = 30, acc: int = 30, wait: int = 0
 
 
 def return_to_safe(token: str, target: str = "Safe") -> Dict[str, Any]:
-    return request_json("POST", "/command/returnToSafe/", with_token(token, {"target": target}))
+    return command_return_to_safe(token, target=target)
 
 
 # --- robotControl ---
 def shutdown_robot(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/robotControl/shutdown/", with_token(token, {}))
+    return robot_shutdown(token)
 
 
 def reset_robot(token: str, recover: int = 1, clear: int = 1) -> Dict[str, Any]:
-    return request_json("POST", "/access/resetRobot/", with_token(token, {"recover": int(recover), "clear": int(clear)}))
+    return access_reset_robot(token, recover=int(recover), clear=int(clear))
 
 
 # --- script-api ---
 def get_current_location(token: str) -> Dict[str, Any]:
-    return request_json("POST", "/script-api/curLocation/", with_token(token, {}))
+    return script_api_cur_location(token)
 
 
 def extract_camera_jpg_path(response_data: Dict[str, Any]) -> str:
