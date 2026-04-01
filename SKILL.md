@@ -1,8 +1,8 @@
 ---
 name: skill-robot-control
 description: |
-  通过本地脚本 scripts/validate.py 控制汇像机器人与下装移动工具（AGV）已封装动作。仅调用现有命令，不扩展未封装接口。涉及真实动作前必须完成现场安全确认。
-  触发词：初始化机器人｜打开夹爪｜关闭夹爪｜夹爪移动到｜执行 Perform｜回安全位｜获取相机图片｜机器人急停｜下装移动到站点｜停止运动｜移动工具回零｜获取移动工具位置｜关闭机器人｜查看状态
+  通过本地脚本 scripts/validate.py 控制汇像机器人与下装移动工具（AGV）动作，支持 legacy 命令与 namespaced 命令（access_/action_/authority_/command_/config_/db_/init_/robot_/script_api_/script_/sync_）。
+  触发词：初始化机器人｜打开夹爪｜关闭夹爪｜夹爪移动到｜执行 Perform｜回安全位｜获取相机图片｜机器人急停｜下装移动到站点｜停止运动｜移动工具回零｜获取移动工具位置｜关闭机器人｜查看状态｜数据库配置查询｜脚本执行｜示教系统接口
   排除条件：仅解释原理/代码；讨论架构方案；请求未封装复杂流程；要求绕过权限/安全；动作目标不明确却要求直接执行。
 ---
 
@@ -15,8 +15,20 @@ description: |
 - 基础控制：`init_all`、`grip_open`、`grip_close`、`grip_position value`、`perform target [--vel] [--acc] [--wait]`、`safe [--target]`、`shutdown`、`camera [--out]`、`status`
 - 下装移动工具：`agv_goto location`、`vehicle_stop`、`vehicle_home`、`vehicle_location`
 - 系统控制：`close_robot`
+- Namespaced 接口：
+  - `access_*`
+  - `action_*`
+  - `authority_*`
+  - `command_*`
+  - `config_*`
+  - `db_*`
+  - `init_*`
+  - `robot_*`
+  - `script_api_*`
+  - `script_*`
+  - `sync_*`
 
-> 只调用现有脚本能力；不自动扩展未封装接口。
+> 只调用 validate.py 已封装子命令；不自动扩展未封装接口。
 
 ## 何时触发
 当用户明确要求执行上述命令对应的真实动作或状态查询时触发。
@@ -36,6 +48,8 @@ description: |
 - `camera`：可选 `out`
 - `agv_goto`：必须 `location`（如 `LM1`、`LM7`）
 - 其他命令无需额外参数
+- namespaced 命令中复杂参数（如 `waypoint`、`poses`、`process_list`、`configurations` 等）必须按 JSON 字符串传入。
+- namespaced 命令如显式提供 `--token` 则优先使用；未提供时按脚本策略自动从状态和保障逻辑获取。
 
 ## 安全门禁（必须执行）
 对会触发真实运动/控制变化的命令（`grip_*`、`perform`、`safe`、`shutdown`、`agv_goto`、`vehicle_stop`、`vehicle_home`、`close_robot`）：
@@ -61,6 +75,7 @@ description: |
 - "移动工具在哪" → `vehicle_location`
 - "关闭机器人/释放控制权" → `close_robot`
 - "查看当前状态" → `status`
+- "调用示教系统 namespaced API" → `python scripts/validate.py <namespaced_subcommand> [--args]`
 
 ## 执行约束
 - 默认执行格式：`python scripts/validate.py <subcommand> [args]`
