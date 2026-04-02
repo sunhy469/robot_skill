@@ -1,77 +1,81 @@
 ---
 name: skill-robot-control
 description: |
-  通过本地脚本 scripts/validate.py 控制汇像机器人与下装移动工具（AGV）已封装动作。仅调用现有命令，不扩展未封装接口。涉及真实动作前必须完成现场安全确认。
-  触发词：初始化机器人｜打开夹爪｜关闭夹爪｜夹爪移动到｜执行 Perform｜回安全位｜获取相机图片｜机器人急停｜下装移动到站点｜停止运动｜移动工具回零｜获取移动工具位置｜关闭机器人｜查看状态
-  排除条件：仅解释原理/代码；讨论架构方案；请求未封装复杂流程；要求绕过权限/安全；动作目标不明确却要求直接执行。
+  通过 scripts/validate.py 控制汇像机器人与 AGV，兼容 legacy 命令与 namespaced 命令。
+  触发词（融合）：初始化/夹爪/Perform/安全位/急停/相机/AGV移动/状态查询/关闭机器人/示教系统API/数据库与配置/脚本执行。
+  排除条件：仅需讲解原理；请求未封装能力；参数缺失且无法补齐；要求绕过权限或安全门禁。
 ---
 
 # 机器人控制 Skill（OpenClaw）
 
 ## 目标
-将用户自然语言请求映射为 `scripts/validate.py` 子命令，返回真实执行结果（JSON），保持可追溯、可复现。
+将自然语言请求准确映射为 `python scripts/validate.py <subcommand> [args]`，并返回可追溯 JSON 结果。
 
-## 能力范围（与脚本严格一致）
-- 基础控制：`init_all`、`grip_open`、`grip_close`、`grip_position value`、`perform target [--vel] [--acc] [--wait]`、`safe [--target]`、`shutdown`、`camera [--out]`、`status`
-- 下装移动工具：`agv_goto location`、`vehicle_stop`、`vehicle_home`、`vehicle_location`
-- 系统控制：`close_robot`
+## 能力范围（融合分层）
 
-> 只调用现有脚本能力；不自动扩展未封装接口。
+### L1：Legacy 稳定命令（优先兼容）
+- 初始化与状态：`init_all`、`status`、`close_robot`
+- 运动与执行：`perform`、`safe`、`shutdown`
+- 夹爪与相机：`grip_open`、`grip_close`、`grip_position`、`camera`
+- AGV 基础：`agv_goto`、`vehicle_stop`、`vehicle_home`、`vehicle_location`
 
-## 何时触发
-当用户明确要求执行上述命令对应的真实动作或状态查询时触发。
+### L2：Namespaced 扩展命令（按域分组）
+- 访问与权限：`access_*`、`authority_*`
+- 动作与控制：`action_*`、`command_*`、`robot_*`
+- 配置与数据库：`config_*`、`db_*`、`sync_*`
+- 初始化与脚本：`init_*`、`script_*`、`script_api_*`
 
-## 何时不要触发
-- 用户只需要讲解、学习资料、架构建议。
-- 用户要求执行脚本未封装动作。
-- 用户未提供必要参数（如 `grip_position value`、`perform target`、`agv_goto location`）。
-- 用户要求绕过 token、控制权或安全确认。
+### L3：融合原则（必须遵守）
+1. Legacy 命令语义、默认参数和执行路径保持兼容。
+2. 新能力使用 namespaced 命令，不替换 legacy 命令名。
+3. 两类命令统一通过 `validate.py` 入口执行，统一 JSON 返回结构。
 
-## 参数收集规则
-- `grip_position`：必须 `value`（int）
-- `perform`：必须 `target`；可选 `vel`(默认 30)、`acc`(默认 30)、`wait`(默认 0，异步模式)
-  - `wait=0`: 火发模式 (fire-and-forget)，发送指令后立即返回（推荐用于长时间动作）
-  - `wait=1`: 同步模式，等待动作完成后再返回（用于需要确认的场景）
-- `safe`：可选 `target`（默认 `Safe`）
+## 触发策略（分层）
+
+### 直接触发（可执行）
+- 用户明确要求“真实执行动作/查询状态”，且参数齐全、安全条件可确认。
+
+### 先澄清再执行
+- 动作目标不明确（如未给 `perform target`、`agv_goto location`、`grip_position value`）。
+- namespaced 命令的复杂参数未给完整 JSON。
+
+### 不触发执行
+- 用户仅需解释、学习、方案讨论。
+- 请求未封装接口或要求绕过 token/控制权/安全门禁。
+
+## 参数收集规则（保留并细化）
+
+### A. Legacy 关键参数
+- `grip_position`：必须 `value:int`
+- `perform`：必须 `target`；可选 `vel:int=30`、`acc:int=30`、`wait:int=0`
+  - `wait=0`：异步发送，立即返回（长动作推荐）
+  - `wait=1`：同步等待完成
+- `safe`：可选 `target`，默认 `Safe`
 - `camera`：可选 `out`
-- `agv_goto`：必须 `location`（如 `LM1`、`LM7`）
-- 其他命令无需额外参数
+- `agv_goto`：必须 `location`
+
+### B. Namespaced 参数规范
+- 简单字段：按 `--name value` 传入。
+- 复杂字段必须传 JSON 字符串（如 `waypoint`、`poses`、`steps`、`directions`、`process_list`、`configurations`、`location_offset` 等）。
+- 数值字段应能安全转换为 `int/float`；无法转换应返回参数错误。
+- 可选字段不应强行传 `None`。
+
+### C. Token 与就绪策略
+- 显式传 `--token`：优先使用该 token。
+- 未传 `--token`：按命令类型自动走状态文件与保障逻辑（token-only 或 ready-required）。
+- 不需 token 的查询接口直接调用（如部分 `config_*`、`sync_*`、`script_api_battery` 等）。
 
 ## 安全门禁（必须执行）
-对会触发真实运动/控制变化的命令（`grip_*`、`perform`、`safe`、`shutdown`、`agv_goto`、`vehicle_stop`、`vehicle_home`、`close_robot`）：
-1. 确认危险区域无人、路径无障碍。
-2. 确认夹爪与机器人运动不会伤人/撞机。
-3. 确认急停可触达。
-4. 用户明确"要真实执行"。
+对会触发真实运动/状态变化的命令（含 `grip_*`、`perform`、`safe`、`shutdown`、`agv_goto`、`vehicle_*`、多数 `action_*`/`command_*`/`robot_*`/操作型 `script_api_*`）：
+1. 确认危险区域无人、路径无遮挡。
+2. 确认夹爪/机械臂/AGV 运动不会伤人或撞机。
+3. 确认急停可达。
+4. 用户明确“允许真实执行”。
 
-若无法确认安全，只给出原因，不执行动作。
+若任一条件无法确认：仅返回原因与建议，不执行动作。
 
-## 命令映射
-- "初始化机器人/测试初始化链路" → `init_all`
-- "打开夹爪" → `grip_open`
-- "关闭夹爪" → `grip_close`
-- "夹爪移动到 300" → `grip_position 300`
-- "在 A 区域执行 Perform" → `perform A [--vel --acc --wait]`
-- "回安全位" → `safe [--target Safe]`
-- "急停机器人" → `shutdown`
-- "获取相机图片" → `camera [--out path]`
-- "下装移动到 LM7" → `agv_goto LM7`
-- "停止移动工具" → `vehicle_stop`
-- "移动工具回零" → `vehicle_home`
-- "移动工具在哪" → `vehicle_location`
-- "关闭机器人/释放控制权" → `close_robot`
-- "查看当前状态" → `status`
-
-## 执行约束
-- 默认执行格式：`python scripts/validate.py <subcommand> [args]`
-- 保持脚本现有 JSON 输出结构：
-  - 成功：`{"success": true, "command": "...", "result": ...}`
-  - 失败：`{"success": false, "error": "..."}`
-- 仅在命令被清晰映射且参数齐全时执行。
-
-## 异步执行说明
-对于 `perform` 等长时间动作，默认使用 `wait=0` 异步模式：
-- 指令发送到机器人后立即返回
-- 即使网络超时，也可能已经成功执行
-- 可通过 `查看状态` 或重新初始化来确认机器人当前状态
-- 如需等待完成，显式指定 `--wait 1`
+## 输出与执行约束
+- 执行格式：`python scripts/validate.py <subcommand> [args]`
+- 成功输出：`{"success": true, "command": "...", "result": ...}`
+- 失败输出：`{"success": false, "error": "..."}`
+- 仅在命令映射清晰、参数齐全、安全确认完成后执行。
