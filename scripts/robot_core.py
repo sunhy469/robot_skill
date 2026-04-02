@@ -237,7 +237,6 @@ def ensure_initialized() -> str:
     return token
 
 
-
 def _drop_none_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in payload.items() if v is not None}
 
@@ -380,8 +379,15 @@ def command_uncover(token: str, uncover_area: str, store_lid_area: str, consumab
 
 def command_perform(token: str, target: str, vel: Optional[str] = 30, acc: Optional[str] = 30, wait: Optional[str] = 0) -> Dict[str, Any]:
     payload = _drop_none_fields({"target": target, "vel": vel, "acc": acc, "wait": wait})
-    
-    if wait == 0:
+
+    wait_int = 0
+    if wait is not None:
+        try:
+            wait_int = int(wait)
+        except (TypeError, ValueError):
+            wait_int = 1
+
+    if wait_int == 0:
         # 异步模式：发送即返回，不等待响应
         logger.info("perform (async): sending command to %s without waiting", target)
         try:

@@ -35,33 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="validate.py", description="汇像机器人控制脚本，供 OpenClaw Skill 调用")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # legacy commands
+    # compatibility command
     sub.add_parser("init_all", help="执行完整初始化流程")
-    
-    sub.add_parser("grip_open", help="打开夹爪")
-    sub.add_parser("grip_close", help="关闭夹爪")
-    p_grip = sub.add_parser("grip_position", help="夹爪移动到指定位置")
-    p_grip.add_argument("value", type=int, help="夹爪位置值")
-
-    p_perform = sub.add_parser("perform", help="执行目标区域动作")
-    p_perform.add_argument("target", help="目标区域名称")
-    p_perform.add_argument("--vel", type=int, default=30, help="速度百分比")
-    p_perform.add_argument("--acc", type=int, default=30, help="加速度百分比")
-    p_perform.add_argument("--wait", type=int, default=0, help="是否等待完成，1 等待，0 不等待（默认异步）")
-
-    p_safe = sub.add_parser("safe", help="回安全位")
-    p_safe.add_argument("--target", default="Safe", help="安全位名称")
-
-    sub.add_parser("shutdown", help="急停")
-    p_camera = sub.add_parser("camera", help="获取相机图片")
-    p_camera.add_argument("--out", default=None, help="保存图片到指定路径")
-    sub.add_parser("close_robot", help="关闭机器人并重置本地状态")
-    sub.add_parser("status", help="查看本地状态")
-    p_agv = sub.add_parser("agv_goto", help="下装移动工具运动到指定站点")
-    p_agv.add_argument("location")
-    sub.add_parser("vehicle_stop")
-    sub.add_parser("vehicle_home")
-    sub.add_parser("vehicle_location")
 
     # new commands (all namespaced)
     p = sub.add_parser("access_enum"); p.add_argument("--key")

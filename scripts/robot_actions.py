@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from argparse import Namespace
 from typing import Any, Dict, Optional
 
@@ -45,21 +44,21 @@ def _tok(args: Namespace, ready: bool = False) -> str:
 
 def cmd_init_all() -> Dict[str, Any]:
     result: Dict[str, Any] = {}
-    token_resp = rc.generate_token(forced=1)
-    token = token_resp.get("data", {}).get("token", "")
+    token_resp = rc.authority_generate(forced=1)
+    token = str(rc.extract_result_value(token_resp, "token", "") or "")
     result["generate_token"] = token_resp
 
     try:
-        result["vehicle_reset"] = rc.vehicle_reset(token)
+        result["vehicle_reset"] = rc.action_vehicle_reset(token)
     except Exception as e:
         result["vehicle_reset_error"] = str(e)
 
     try:
-        result["reset_robot"] = rc.reset_robot(token, recover=1, clear=1)
+        result["reset_robot"] = rc.access_reset_robot(token, recover=1, clear=1)
     except Exception as e:
         result["reset_robot_error"] = str(e)
 
-    result["initialize_robot"] = rc.initialize_robot(token, homed=1, forced=0)
+    result["initialize_robot"] = rc.init_initialize(token, homed=1, forced=0)
     result["state"] = rc.save_state(token=token, initialized=True)
     return result
 
