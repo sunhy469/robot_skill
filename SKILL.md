@@ -1,7 +1,7 @@
 ---
 name: skill-robot-control
 description: |
-  通过 scripts/validate.py 控制汇像机器人与 AGV，兼容 legacy 命令与 namespaced 命令。
+  通过 scripts/validate.py 控制汇像机器人与 AGV，统一使用 namespaced 命令。
   触发词（融合）：初始化/夹爪/Perform/安全位/急停/相机/AGV移动/状态查询/关闭机器人/示教系统API/数据库与配置/脚本执行。
   排除条件：仅需讲解原理；请求未封装能力；参数缺失且无法补齐；要求绕过权限或安全门禁。
 ---
@@ -13,11 +13,8 @@ description: |
 
 ## 能力范围（融合分层）
 
-### L1：Legacy 稳定命令（优先兼容）
-- 初始化与状态：`init_all`、`status`、`close_robot`
-- 运动与执行：`perform`、`safe`、`shutdown`
-- 夹爪与相机：`grip_open`、`grip_close`、`grip_position`、`camera`
-- AGV 基础：`agv_goto`、`vehicle_stop`、`vehicle_home`、`vehicle_location`
+### L1：兼容入口
+- 保留 `init_all` 作为兼容入口，其余动作统一使用 namespaced 命令执行。
 
 ### L2：Namespaced 扩展命令（按域分组）
 - 访问与权限：`access_*`、`authority_*`
@@ -26,9 +23,9 @@ description: |
 - 初始化与脚本：`init_*`、`script_*`、`script_api_*`
 
 ### L3：融合原则（必须遵守）
-1. Legacy 命令语义、默认参数和执行路径保持兼容。
-2. 新能力使用 namespaced 命令，不替换 legacy 命令名。
-3. 两类命令统一通过 `validate.py` 入口执行，统一 JSON 返回结构。
+1. 除 `init_all` 外，统一使用 namespaced 命令，不再扩展 legacy 命令处理函数。
+2. 对用户的 legacy 语义请求，做“语义映射”而非新增耦合代码。
+3. 统一通过 `validate.py` 入口执行，统一 JSON 返回结构。
 
 ## 触发策略（分层）
 
@@ -36,7 +33,7 @@ description: |
 - 用户明确要求“真实执行动作/查询状态”，且参数齐全、安全条件可确认。
 
 ### 先澄清再执行
-- 动作目标不明确（如未给 `perform target`、`agv_goto location`、`grip_position value`）。
+- 动作目标不明确（如未给 `command_perform --target`、`action_agv_goto_location --location`、`action_grip_control --value`）。
 - namespaced 命令的复杂参数未给完整 JSON。
 
 ### 不触发执行
@@ -45,14 +42,15 @@ description: |
 
 ## 参数收集规则（保留并细化）
 
-### A. Legacy 关键参数
-- `grip_position`：必须 `value:int`
-- `perform`：必须 `target`；可选 `vel:int=30`、`acc:int=30`、`wait:int=0`
-  - `wait=0`：异步发送，立即返回（长动作推荐）
-  - `wait=1`：同步等待完成
-- `safe`：可选 `target`，默认 `Safe`
-- `camera`：可选 `out`
-- `agv_goto`：必须 `location`
+### A. 语义映射（legacy 说法 -> namespaced 调用）
+- “打开夹爪” -> `action_grip_control --action_type open --value 0`
+- “关闭夹爪” -> `action_grip_control --action_type close --value 0`
+- “夹爪到指定位置” -> `action_grip_control --action_type position --value <int>`
+- “执行区域动作/perform” -> `command_perform --target <target> [--vel --acc --wait]`
+- “回安全位/safe” -> `command_return_to_safe --target Safe`
+- “急停/shutdown” -> `robot_shutdown`
+- “相机抓拍/camera” -> `action_get_camera_jpg`
+- “AGV 去站点/agv_goto” -> `action_agv_goto_location --location <name>`
 
 ### B. Namespaced 参数规范
 - 简单字段：按 `--name value` 传入。
@@ -65,7 +63,7 @@ description: |
 - 不需 token 的查询接口直接调用（如部分 `config_*`、`sync_*`、`script_api_battery` 等）。
 
 ## 安全门禁（必须执行）
-对会触发真实运动/状态变化的命令（含 `grip_*`、`perform`、`safe`、`shutdown`、`agv_goto`、`vehicle_*`、多数 `action_*`/`command_*`/`robot_*`/操作型 `script_api_*`）：
+对会触发真实运动/状态变化的命令（含夹爪、运动、急停、AGV、多数 `action_*`/`command_*`/`robot_*`/操作型 `script_api_*`）：
 1. 确认危险区域无人、路径无遮挡。
 2. 确认夹爪/机械臂/AGV 运动不会伤人或撞机。
 3. 确认急停可达。
