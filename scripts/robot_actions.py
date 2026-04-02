@@ -37,6 +37,26 @@ def maybe_float(value: Any) -> Optional[float]:
     return float(value)
 
 
+def require_int(value: Any, arg_name: str) -> int:
+    """必填整数转换。"""
+    if value is None:
+        raise RobotApiError(f"参数 {arg_name} 不能为空")
+    try:
+        return int(value)
+    except Exception as e:
+        raise RobotApiError(f"参数 {arg_name} 必须是整数: {value}") from e
+
+
+def require_float(value: Any, arg_name: str) -> float:
+    """必填浮点转换。"""
+    if value is None:
+        raise RobotApiError(f"参数 {arg_name} 不能为空")
+    try:
+        return float(value)
+    except Exception as e:
+        raise RobotApiError(f"参数 {arg_name} 必须是数字: {value}") from e
+
+
 def drop_none_fields(data: Dict[str, Any]) -> Dict[str, Any]:
     """过滤值为 None 的可选字段。"""
     return {k: v for k, v in data.items() if v is not None}
@@ -394,7 +414,7 @@ def cmd_config_update_robot_configurations(args: Namespace) -> Dict[str, Any]:
 
 def cmd_db_check_process(args: Namespace) -> Dict[str, Any]: return rc.db_check_process(_tok(args), args.area)
 def cmd_db_delete_area(args: Namespace) -> Dict[str, Any]: return rc.db_delete_area(_tok(args), args.delete_name)
-def cmd_db_delete_consumable(args: Namespace) -> Dict[str, Any]: return rc.db_delete_consumable(_tok(args), int(args.consumable_id))
+def cmd_db_delete_consumable(args: Namespace) -> Dict[str, Any]: return rc.db_delete_consumable(_tok(args), require_int(args.consumable_id, "consumable_id"))
 def cmd_db_delete_link(args: Namespace) -> Dict[str, Any]: return rc.db_delete_link(_tok(args), args.link_name)
 def cmd_db_find_areas(args: Namespace) -> Dict[str, Any]: return rc.db_find_areas(_tok(args), args.name, args.description, maybe_int(args.rotation))
 def cmd_db_find_links_data(args: Namespace) -> Dict[str, Any]: return rc.db_find_links_data(_tok(args), args.area_name1, args.area_name2)
@@ -410,13 +430,13 @@ def cmd_db_get_links_process(args: Namespace) -> Dict[str, Any]: return rc.db_ge
 def cmd_db_get_log_data(args: Namespace) -> Dict[str, Any]: return rc.db_get_log_data(_tok(args), args.start_date, args.end_date, args.level)
 def cmd_db_get_real_name_list(args: Namespace) -> Dict[str, Any]: return rc.db_get_real_name_list(_tok(args))
 def cmd_db_get_waypoints(args: Namespace) -> Dict[str, Any]: return rc.db_get_waypoints(_tok(args), args.area_name, args.pose)
-def cmd_db_new_area(args: Namespace) -> Dict[str, Any]: return rc.db_new_area(_tok(args), parse_json_arg(args.name_list, "name_list"), args.eoat, args.pose, int(args.rotation), float(args.offset_z), args.type_value, args.area_type, args.tag_area, float(args.upland_z), float(args.teach_plate_inside_z))
-def cmd_db_save_consumable(args: Namespace) -> Dict[str, Any]: return rc.db_save_consumable(_tok(args), int(args.id), args.consumable_type, args.name, int(args.wells), float(args.offset_inside_z), float(args.offset_uncover_z), float(args.offset_lid_bottom), float(args.offset_covered), float(args.cover_squeexe), float(args.offset_bottom), float(args.squeeze), float(args.unsqueeze))
+def cmd_db_new_area(args: Namespace) -> Dict[str, Any]: return rc.db_new_area(_tok(args), parse_json_arg(args.name_list, "name_list"), args.eoat, args.pose, require_int(args.rotation, "rotation"), require_float(args.offset_z, "offset_z"), args.type_value, args.area_type, args.tag_area, require_float(args.upland_z, "upland_z"), require_float(args.teach_plate_inside_z, "teach_plate_inside_z"))
+def cmd_db_save_consumable(args: Namespace) -> Dict[str, Any]: return rc.db_save_consumable(_tok(args), require_int(args.id, "id"), args.consumable_type, args.name, require_int(args.wells, "wells"), require_float(args.offset_inside_z, "offset_inside_z"), require_float(args.offset_uncover_z, "offset_uncover_z"), require_float(args.offset_lid_bottom, "offset_lid_bottom"), require_float(args.offset_covered, "offset_covered"), require_float(args.cover_squeexe, "cover_squeexe"), require_float(args.offset_bottom, "offset_bottom"), require_float(args.squeeze, "squeeze"), require_float(args.unsqueeze, "unsqueeze"))
 def cmd_db_save_new_link(args: Namespace) -> Dict[str, Any]: return rc.db_save_new_link(_tok(args), args.link_name, args.area_from, args.area_to, args.pose_from, args.pose_to)
 def cmd_db_save_waypoint(args: Namespace) -> Dict[str, Any]: return rc.db_save_waypoint(_tok(args), args.area_name, args.pose, parse_json_arg(args.waypoint, "waypoint"))
 def cmd_db_stack_continuation(args: Namespace) -> Dict[str, Any]: return rc.db_stack_continuation(_tok(args))
-def cmd_db_update_area(args: Namespace) -> Dict[str, Any]: return rc.db_update_area(_tok(args), parse_json_arg(args.area_name_list, "area_name_list"), args.edit_area_eoat, args.area_forward, float(args.area_offset_z))
-def cmd_db_update_consumable(args: Namespace) -> Dict[str, Any]: return rc.db_update_consumable(_tok(args), int(args.id), args.consumable_type, args.name, int(args.wells), float(args.offset_inside_z), float(args.offset_uncover_z), float(args.offset_lid_bottom))
+def cmd_db_update_area(args: Namespace) -> Dict[str, Any]: return rc.db_update_area(_tok(args), parse_json_arg(args.area_name_list, "area_name_list"), args.edit_area_eoat, args.area_forward, require_float(args.area_offset_z, "area_offset_z"))
+def cmd_db_update_consumable(args: Namespace) -> Dict[str, Any]: return rc.db_update_consumable(_tok(args), require_int(args.id, "id"), args.consumable_type, args.name, require_int(args.wells, "wells"), require_float(args.offset_inside_z, "offset_inside_z"), require_float(args.offset_uncover_z, "offset_uncover_z"), require_float(args.offset_lid_bottom, "offset_lid_bottom"))
 def cmd_db_update_link_process(args: Namespace) -> Dict[str, Any]: return rc.db_update_link_process(_tok(args), args.link, parse_json_arg(args.process_list, "process_list"))
 def cmd_db_update_process(args: Namespace) -> Dict[str, Any]: return rc.db_update_process(_tok(args), args.area_name, args.process_type, parse_json_arg(args.process_list, "process_list"))
 
