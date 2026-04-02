@@ -37,17 +37,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     # legacy commands
     sub.add_parser("init_all", help="执行完整初始化流程")
+    
     sub.add_parser("grip_open", help="打开夹爪")
     sub.add_parser("grip_close", help="关闭夹爪")
     p_grip = sub.add_parser("grip_position", help="夹爪移动到指定位置")
     p_grip.add_argument("value", type=int, help="夹爪位置值")
+
     p_perform = sub.add_parser("perform", help="执行目标区域动作")
     p_perform.add_argument("target", help="目标区域名称")
     p_perform.add_argument("--vel", type=int, default=30, help="速度百分比")
     p_perform.add_argument("--acc", type=int, default=30, help="加速度百分比")
     p_perform.add_argument("--wait", type=int, default=0, help="是否等待完成，1 等待，0 不等待（默认异步）")
+
     p_safe = sub.add_parser("safe", help="回安全位")
     p_safe.add_argument("--target", default="Safe", help="安全位名称")
+
     sub.add_parser("shutdown", help="急停")
     p_camera = sub.add_parser("camera", help="获取相机图片")
     p_camera.add_argument("--out", default=None, help="保存图片到指定路径")
@@ -65,13 +69,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     for name in ["action_agv_control_keep", "action_agv_control_stop", "action_agv_get_map_list", "action_get_camera_jpg", "action_get_camera_offset", "action_vehicle_home", "action_vehicle_reset", "action_vehicle_stop"]:
         p = sub.add_parser(name); _add_token(p)
-    p = sub.add_parser("action_agv_control_motion"); _add_token(p); p.add_argument("--vx", required=True); p.add_argument("--vy", required=True); p.add_argument("--vw", required=True)
+
+    p = sub.add_parser("action_agv_control_motion"); _add_token(p); 
+    p.add_argument('--vx', type=str, default='30.0', help='X轴速度，字符串类型')
+    p.add_argument('--vy', type=str, default='30.0', help='Y轴速度，字符串类型')
+    p.add_argument('--vw', type=str, default='20.0', help='角速度，字符串类型')
+
     p = sub.add_parser("action_agv_goto_location"); _add_token(p); p.add_argument("--location", required=True)
     p = sub.add_parser("action_agv_load_map"); _add_token(p); p.add_argument("--map_name", required=True)
     p = sub.add_parser("action_calibrate_location"); _add_token(p); p.add_argument("--area", required=True)
-    p = sub.add_parser("action_grip_control"); _add_token(p); p.add_argument("--action_type", required=True); p.add_argument("--value", required=True)
-    p = sub.add_parser("action_peripheral_control"); _add_token(p); p.add_argument("--peripheral", required=True); p.add_argument("--action_type", required=True); p.add_argument("--value", required=True)
-    p = sub.add_parser("action_vehicle_move"); _add_token(p); p.add_argument("--position", required=True); p.add_argument("--velocity", required=True)
+    p = sub.add_parser("action_grip_control"); _add_token(p); p.add_argument("--action_type", required=True); p.add_argument("--value", type=str, required=True)
+    p = sub.add_parser("action_peripheral_control"); _add_token(p); p.add_argument("--peripheral", required=True); p.add_argument("--action_type", required=True); p.add_argument("--value", type=str, required=True)
+    p = sub.add_parser("action_vehicle_move"); _add_token(p); p.add_argument("--position", type=str,  required=True); p.add_argument("--velocity",  type=str, required=True)
 
     p = sub.add_parser("authority_generate"); p.add_argument("--robot", default=""); p.add_argument("--mode", default=""); p.add_argument("--serial", default=""); p.add_argument("--forced", default=1)
     for name in ["authority_consume", "authority_is_accessible", "authority_is_controller", "authority_is_viewer", "authority_loose"]:

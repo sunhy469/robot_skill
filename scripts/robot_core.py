@@ -175,138 +175,6 @@ def with_token(token: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str
 
 
 # =========================
-# 机器人底层 API（按官方域分组）
-# =========================
-
-# --- authority ---
-def generate_token(forced: int = 1) -> Dict[str, Any]:
-    return authority_generate(robot="", mode="", serial="", forced=int(forced))
-
-
-def consume_token(token: str) -> Dict[str, Any]:
-    return authority_consume(token)
-
-
-def is_accessible(token: str) -> Dict[str, Any]:
-    return authority_is_accessible(token)
-
-
-def is_controller(token: str) -> Dict[str, Any]:
-    return authority_is_controller(token)
-
-
-# --- initialization ---
-def initialize_robot(token: str, homed: int = 1, forced: int = 0) -> Dict[str, Any]:
-    return init_initialize(token, homed=int(homed), forced=int(forced))
-
-
-def finalize_robot(token: str) -> Dict[str, Any]:
-    return init_finalize(token)
-
-
-def is_initialized() -> Dict[str, Any]:
-    return init_is_initialized()
-
-
-# --- actionControl ---
-def vehicle_reset(token: str) -> Dict[str, Any]:
-    return action_vehicle_reset(token)
-
-
-def grip_control(token: str, action_type: str, value: int = 0) -> Dict[str, Any]:
-    return action_grip_control(token, action_type=action_type, value=value)
-
-
-def grip_open(token: str) -> Dict[str, Any]:
-    return grip_control(token, "Open", 0)
-
-
-def grip_close(token: str) -> Dict[str, Any]:
-    return grip_control(token, "Close", 0)
-
-
-def grip_position(token: str, value: int) -> Dict[str, Any]:
-    return grip_control(token, "Position", value)
-
-
-def get_camera_jpg(token: str) -> Dict[str, Any]:
-    return action_get_camera_jpg(token)
-
-
-def agv_goto_location(token: str, location: str) -> Dict[str, Any]:
-    return action_agv_goto_location(token, location=str(location))
-
-
-def vehicle_stop(token: str) -> Dict[str, Any]:
-    return action_vehicle_stop(token)
-
-
-def vehicle_home(token: str) -> Dict[str, Any]:
-    return action_vehicle_home(token)
-
-
-# --- command ---
-def perform(token: str, target: str, vel: int = 30, acc: int = 30, wait: int = 0) -> Dict[str, Any]:
-    """
-    执行目标区域动作。
-    
-    wait 参数说明:
-    - wait=0: 火发模式 (fire-and-forget)，发送指令后立即返回，不等待机器人响应
-    - wait=1: 同步模式，等待机器人完成动作并返回结果
-    
-    对于长时间动作，建议使用 wait=0 避免超时。
-    """
-    payload = with_token(token, {"target": target, "vel": vel, "acc": acc, "wait": wait})
-    
-    if wait == 0:
-        # 异步模式：发送即返回，不等待响应
-        logger.info("perform (async): sending command to %s without waiting", target)
-        try:
-            request_json("POST", "/command/perform/", payload)
-            return {"success": True, "mode": "async", "message": f"指令已发送到 {target}，机器人正在执行"}
-        except RobotNetworkError as e:
-            # 即使是网络错误，也可能是因为发送成功了只是没收到响应
-            logger.warning("perform (async): network error but command may have been sent: %s", e)
-            return {"success": True, "mode": "async", "message": f"指令可能已发送到 {target}（网络响应超时），建议稍后查看状态确认"}
-    else:
-        # 同步模式：等待结果
-        logger.info("perform (sync): executing %s and waiting for completion", target)
-        return request_json("POST", "/command/perform/", payload)
-
-
-def return_to_safe(token: str, target: str = "Safe") -> Dict[str, Any]:
-    return command_return_to_safe(token, target=target)
-
-
-# --- robotControl ---
-def shutdown_robot(token: str) -> Dict[str, Any]:
-    return robot_shutdown(token)
-
-
-def reset_robot(token: str, recover: int = 1, clear: int = 1) -> Dict[str, Any]:
-    return access_reset_robot(token, recover=int(recover), clear=int(clear))
-
-
-# --- script-api ---
-def get_current_location(token: str) -> Dict[str, Any]:
-    return script_api_cur_location(token)
-
-
-def extract_camera_jpg_path(response_data: Dict[str, Any]) -> str:
-    data = response_data.get("data", {})
-    if isinstance(data, dict) and data.get("jpg"):
-        return str(data["jpg"])
-    jpg = extract_result_value(response_data, "jpg", "")
-    if jpg:
-        return str(jpg)
-    raise RobotBusinessError(f"相机返回结果中未找到 jpg 路径：{json_dumps(response_data)}")
-
-
-def fetch_image_bytes(image_path: str) -> bytes:
-    return request_bytes("GET", image_path)
-
-
-# =========================
 # token / 初始化保障逻辑
 # =========================
 
@@ -316,7 +184,7 @@ def ensure_token_ready() -> str:
 
     if not token:
         logger.info("ensure_token_ready: no local token, generating")
-        data = generate_token(forced=1)
+        data = authority_generate(forced=1)
         new_token = extract_result_value(data, "token", "")
         if not new_token:
             raise RobotStateError(f"generate_token 未返回 token：{json_dumps(data)}")
@@ -324,8 +192,8 @@ def ensure_token_ready() -> str:
         return str(new_token)
 
     try:
-        accessible = str(extract_result_value(is_accessible(token), "result", 0)) == "1"
-        controller = str(extract_result_value(is_controller(token), "result", 0)) == "1"
+        accessible = str(extract_result_value(authority_is_accessible(token), "result", 0)) == "1"
+        controller = str(extract_result_value(authority_is_controller(token), "result", 0)) == "1"
         if accessible and controller:
             logger.info("ensure_token_ready: reuse local token")
             return token
@@ -333,7 +201,7 @@ def ensure_token_ready() -> str:
     except Exception as e:
         logger.warning("ensure_token_ready: token check failed: %s", e)
 
-    data = generate_token(forced=1)
+    data = authority_generate(forced=1)
     new_token = extract_result_value(data, "token", "")
     if not new_token:
         raise RobotStateError(f"generate_token 未返回 token：{json_dumps(data)}")
@@ -343,7 +211,7 @@ def ensure_token_ready() -> str:
 
 def ensure_initialized() -> str:
     token = ensure_token_ready()
-    init_state = is_initialized()
+    init_state = init_is_initialized()
     raw_status = extract_result_value(init_state, "status", 0)
     try:
         status = int(raw_status)
@@ -356,26 +224,19 @@ def ensure_initialized() -> str:
 
     logger.info("ensure_initialized: current status=%s, begin initialization", status)
     try:
-        vehicle_reset(token)
+        action_vehicle_reset(token)
     except Exception as e:
         logger.warning("vehicle_reset failed (degraded): %s", e)
     try:
-        reset_robot(token, recover=1, clear=1)
+        access_reset_robot(token, recover=1, clear=1)
     except Exception as e:
         logger.warning("reset_robot failed (degraded): %s", e)
 
-    initialize_robot(token, homed=1, forced=0)
+    init_initialize(token, homed=1, forced=1)
     save_state(token=token, initialized=True)
     return token
 
 
-def ensure_ready() -> str:
-    return ensure_initialized()
-
-
-# =========================
-# 新增 API 封装（namespaced）
-# =========================
 
 def _drop_none_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in payload.items() if v is not None}
@@ -398,7 +259,7 @@ def action_agv_control_keep(token: str) -> Dict[str, Any]:
     return request_json("POST", "/actionControl/agvControlKeep/", with_token(token, {}))
 
 
-def action_agv_control_motion(token: str, vx: float, vy: float, vw: float) -> Dict[str, Any]:
+def action_agv_control_motion(token: str, vx: float, vy: str, vw: str) -> Dict[str, Any]:
     """POST /actionControl/agvControlMotion/"""
     return request_json("POST", "/actionControl/agvControlMotion/", with_token(token, {"vx": vx, "vy": vy, "vw": vw}))
 
@@ -438,12 +299,12 @@ def action_get_camera_offset(token: str) -> Dict[str, Any]:
     return request_json("POST", "/actionControl/getCameraOffset/", with_token(token, {}))
 
 
-def action_grip_control(token: str, action_type: str, value: int) -> Dict[str, Any]:
+def action_grip_control(token: str, action_type: str, value: str) -> Dict[str, Any]:
     """POST /actionControl/gripControl/"""
     return request_json("POST", "/actionControl/gripControl/", with_token(token, {"actionType": action_type, "value": value}))
 
 
-def action_peripheral_control(token: str, peripheral: str, action_type: str, value: int) -> Dict[str, Any]:
+def action_peripheral_control(token: str, peripheral: str, action_type: str, value: str) -> Dict[str, Any]:
     """POST /actionControl/peripheralControl/"""
     return request_json(
         "POST",
@@ -457,7 +318,7 @@ def action_vehicle_home(token: str) -> Dict[str, Any]:
     return request_json("POST", "/actionControl/vehicleHome/", with_token(token, {}))
 
 
-def action_vehicle_move(token: str, position: float, velocity: float) -> Dict[str, Any]:
+def action_vehicle_move(token: str, position: float, velocity: str) -> Dict[str, Any]:
     """POST /actionControl/vehicleMove/"""
     return request_json("POST", "/actionControl/vehicleMove/", with_token(token, {"position": position, "velocity": velocity}))
 
@@ -503,30 +364,45 @@ def authority_loose(token: str) -> Dict[str, Any]:
     return request_json("POST", "/authority/loose/", with_token(token, {}))
 
 
-def authority_seize(token: str, forced: int = 0) -> Dict[str, Any]:
+def authority_seize(token: str, forced: int = 1) -> Dict[str, Any]:
     """POST /authority/seize/"""
     return request_json("POST", "/authority/seize/", with_token(token, {"forced": int(forced)}))
 
 
 # --- command ---
-def command_cover(token: str, store_lid_area: str, cover_area: str, consumable_id: int, wait: int) -> Dict[str, Any]:
+def command_cover(token: str, store_lid_area: str, cover_area: str, consumable_id: str, wait: str = 0) -> Dict[str, Any]:
     return request_json("POST", "/command/cover/", with_token(token, {"storeLidArea": store_lid_area, "coverArea": cover_area, "consumableId": consumable_id, "wait": wait}))
 
 
-def command_uncover(token: str, uncover_area: str, store_lid_area: str, consumable_id: int, wait: int) -> Dict[str, Any]:
+def command_uncover(token: str, uncover_area: str, store_lid_area: str, consumable_id: str, wait: str = 0) -> Dict[str, Any]:
     return request_json("POST", "/command/uncover/", with_token(token, {"uncoverArea": uncover_area, "storeLidArea": store_lid_area, "consumableId": consumable_id, "wait": wait}))
 
 
-def command_perform(token: str, target: str, consumable: Optional[int] = None, vel: Optional[int] = None, acc: Optional[int] = None, wait: Optional[int] = None) -> Dict[str, Any]:
-    payload = _drop_none_fields({"target": target, "consumable": consumable, "vel": vel, "acc": acc, "wait": wait})
-    return request_json("POST", "/command/perform/", with_token(token, payload))
+def command_perform(token: str, target: str, vel: Optional[str] = 30, acc: Optional[str] = 30, wait: Optional[str] = 0) -> Dict[str, Any]:
+    payload = _drop_none_fields({"target": target, "vel": vel, "acc": acc, "wait": wait})
+    
+    if wait == 0:
+        # 异步模式：发送即返回，不等待响应
+        logger.info("perform (async): sending command to %s without waiting", target)
+        try:
+            request_json("POST", "/command/perform/", with_token(token, payload))
+            return {"success": True, "mode": "async", "message": f"指令已发送到 {target}，机器人正在执行"}
+        except RobotNetworkError as e:
+            # 即使是网络错误，也可能是因为发送成功了只是没收到响应
+            logger.warning("perform (async): network error but command may have been sent: %s", e)
+            return {"success": True, "mode": "async", "message": f"指令可能已发送到 {target}（网络响应超时），建议稍后查看状态确认"}
+    else:
+        # 同步模式：等待结果
+        logger.info("perform (sync): executing %s and waiting for completion", target)
+        return request_json("POST", "/command/perform/", with_token(token, payload))
+    
 
 
-def command_pick(token: str, target: str, consumable: Optional[int] = None, vel: Optional[int] = None, acc: Optional[int] = None, wait: Optional[int] = None, covered: Optional[int] = None) -> Dict[str, Any]:
+def command_pick(token: str, target: str, consumable: Optional[str] = None, vel: Optional[str] = None, acc: Optional[str] = None, wait: Optional[str] = 0, covered: Optional[str] = None) -> Dict[str, Any]:
     return request_json("POST", "/command/pick/", with_token(token, _drop_none_fields({"target": target, "consumable": consumable, "vel": vel, "acc": acc, "wait": wait, "covered": covered})))
 
 
-def command_place(token: str, target: str, consumable: Optional[int] = None, vel: Optional[int] = None, acc: Optional[int] = None, wait: Optional[int] = None, covered: Optional[int] = None) -> Dict[str, Any]:
+def command_place(token: str, target: str, consumable: Optional[str] = None, vel: Optional[str] = None, acc: Optional[str] = None, wait: Optional[str] = 0, covered: Optional[str] = None) -> Dict[str, Any]:
     return request_json("POST", "/command/place/", with_token(token, _drop_none_fields({"target": target, "consumable": consumable, "vel": vel, "acc": acc, "wait": wait, "covered": covered})))
 
 
@@ -538,7 +414,7 @@ def command_teach_array(token: str, area: str, calc_type: str, poses: Any) -> Di
     return request_json("POST", "/command/teachArray/", with_token(token, {"area": area, "calcType": calc_type, "poses": poses}))
 
 
-def command_transfer(token: str, source: str, target: str, consumable: Optional[int] = None, vel: Optional[int] = None, acc: Optional[int] = None, wait: Optional[int] = None, covered: Optional[int] = None) -> Dict[str, Any]:
+def command_transfer(token: str, source: str, target: str, consumable: Optional[str] = None, vel: Optional[str] = None, acc: Optional[str] = None, wait: Optional[str] = 0, covered: Optional[str] = None) -> Dict[str, Any]:
     return request_json("POST", "/command/transfer/", with_token(token, _drop_none_fields({"source": source, "target": target, "consumable": consumable, "vel": vel, "acc": acc, "wait": wait, "covered": covered})))
 
 
@@ -574,9 +450,9 @@ def config_update_robot_configurations(token: str, configurations: Any) -> Dict[
 # --- database ---
 def db_check_process(token: str, area: str) -> Dict[str, Any]: return request_json("POST", "/database/checkProcess/", with_token(token, {"area": area}))
 def db_delete_area(token: str, delete_name: str) -> Dict[str, Any]: return request_json("POST", "/database/deleteArea/", with_token(token, {"deleteName": delete_name}))
-def db_delete_consumable(token: str, consumable_id: int) -> Dict[str, Any]: return request_json("POST", "/database/deleteConsumable/", with_token(token, {"consumableId": consumable_id}))
+def db_delete_consumable(token: str, consumable_id: str) -> Dict[str, Any]: return request_json("POST", "/database/deleteConsumable/", with_token(token, {"id": consumable_id}))
 def db_delete_link(token: str, link_name: str) -> Dict[str, Any]: return request_json("POST", "/database/deleteLink/", with_token(token, {"linkNmae": link_name}))
-def db_find_areas(token: str, name: Optional[str] = None, description: Optional[str] = None, rotation: Optional[int] = None) -> Dict[str, Any]: return request_json("POST", "/database/findAreas/", with_token(token, _drop_none_fields({"name": name, "description": description, "rotation": rotation})))
+def db_find_areas(token: str, name: Optional[str] = None, description: Optional[str] = None, rotation: Optional[str] = None) -> Dict[str, Any]: return request_json("POST", "/database/findAreas/", with_token(token, _drop_none_fields({"name": name, "description": description, "rotation": rotation})))
 def db_find_links_data(token: str, area_name1: str, area_name2: str) -> Dict[str, Any]: return request_json("POST", "/database/findLinksData/", with_token(token, {"areaName1": area_name1, "areaName2": area_name2}))
 def db_get_all_link_pose(token: str) -> Dict[str, Any]: return request_json("POST", "/database/getAllLinkPose/", with_token(token, {}))
 def db_get_all_tag_area(token: str) -> Dict[str, Any]: return request_json("POST", "/database/getAllTagArea/", with_token(token, {}))
@@ -590,15 +466,15 @@ def db_get_links_process(token: str, link: str) -> Dict[str, Any]: return reques
 def db_get_log_data(token: str, start_date: str, end_date: str, level: str) -> Dict[str, Any]: return request_json("POST", "/database/getLogData/", with_token(token, {"startDate": start_date, "endDate": end_date, "level": level}))
 def db_get_real_name_list(token: str) -> Dict[str, Any]: return request_json("POST", "/database/getRealNameList/", with_token(token, {}))
 def db_get_waypoints(token: str, area_name: str, pose: str) -> Dict[str, Any]: return request_json("POST", "/database/getWaypoints/", with_token(token, {"areaName": area_name, "Pose": pose}))
-def db_new_area(token: str, name_list: Any, eoat: str, pose: str, rotation: int, offset_z: float, type_value: str, area_type: str, tag_area: str, upland_z: float, teach_plate_inside_z: float) -> Dict[str, Any]: return request_json("POST", "/database/newArea/", with_token(token, {"nameList": name_list, "eoat": eoat, "Pose": pose, "rotation": rotation, "offsetZ": offset_z, "type": type_value, "AreaType": area_type, "TagArea": tag_area, "uplandZ": upland_z, "teachPlateInsideZ": teach_plate_inside_z}))
-def db_save_consumable(token: str, id: int, consumable_type: str, name: str, wells: int, offset_inside_z: float, offset_uncover_z: float, offset_lid_bottom: float, offset_covered: float, cover_squeexe: float, offset_bottom: float, squeeze: float, unsqueeze: float) -> Dict[str, Any]: return request_json("POST", "/database/saveConsumable/", with_token(token, {"id": id, "consumableType": consumable_type, "name": name, "wells": wells, "offsetInsideZ": offset_inside_z, "offsetUncoverZ": offset_uncover_z, "offsetLidBottom": offset_lid_bottom, "offsetCovered": offset_covered, "cover_squeexe": cover_squeexe, "offsetBottom": offset_bottom, "squeeze": squeeze, "unsqueeze": unsqueeze}))
+def db_new_area(token: str, name_list: Any, eoat: str, pose: str, rotation: str, offset_z: str, type_value: str, area_type: str, tag_area: str, upland_z: str, teach_plate_inside_z: str) -> Dict[str, Any]: return request_json("POST", "/database/newArea/", with_token(token, {"nameList": name_list, "eoat": eoat, "Pose": pose, "rotation": rotation, "offsetZ": offset_z, "type": type_value, "AreaType": area_type, "TagArea": tag_area, "uplandZ": upland_z, "teachPlateInsideZ": teach_plate_inside_z}))
+def db_save_consumable(token: str, id: str, consumable_type: str, name: str, wells: str, offset_inside_z: str, offset_uncover_z: str, offset_lid_bottom: str, offset_covered: str, cover_squeexe: str, offset_bottom: str, squeeze: str, unsqueeze: str) -> Dict[str, Any]: return request_json("POST", "/database/saveConsumable/", with_token(token, {"id": id, "consumableType": consumable_type, "name": name, "wells": wells, "offsetInsideZ": offset_inside_z, "offsetUncoverZ": offset_uncover_z, "offsetLidBottom": offset_lid_bottom, "offsetCovered": offset_covered, "cover_squeexe": cover_squeexe, "offsetBottom": offset_bottom, "squeeze": squeeze, "unsqueeze": unsqueeze}))
 def db_save_new_link(token: str, link_name: str, area_from: str, area_to: str, pose_from: str, pose_to: str) -> Dict[str, Any]: return request_json("POST", "/database/saveNewLink/", with_token(token, {"linkNmae": link_name, "areaFrom": area_from, "areaTo": area_to, "poseFrom": pose_from, "poseTo": pose_to}))
-def db_save_waypoint(token: str, area_name: str, pose: str, waypoint: Any) -> Dict[str, Any]: return request_json("POST", "/database/saveWaypoint/", with_token(token, {"areaName": area_name, "Pose": pose, "waypoint": waypoint}))
+def db_save_waypoint(token: str, area_name: str, pose: str, waypoint: str) -> Dict[str, Any]: return request_json("POST", "/database/saveWaypoint/", with_token(token, {"areaName": area_name, "Pose": pose, "waypoint": waypoint}))
 def db_stack_continuation(token: str) -> Dict[str, Any]: return request_json("POST", "/database/stackContinuation/", with_token(token, {}))
-def db_update_area(token: str, area_name_list: Any, edit_area_eoat: str, area_forward: str, area_offset_z: float) -> Dict[str, Any]: return request_json("POST", "/database/updateArea/", with_token(token, {"areaNameList": area_name_list, "editAreaEOAT": edit_area_eoat, "areaForward": area_forward, "areaOffsetZ": area_offset_z}))
-def db_update_consumable(token: str, id: int, consumable_type: str, name: str, wells: int, offset_inside_z: float, offset_uncover_z: float, offset_lid_bottom: float) -> Dict[str, Any]: return request_json("POST", "/database/updateConsumable/", with_token(token, {"id": id, "consumableType": consumable_type, "name": name, "wells": wells, "offsetInsideZ": offset_inside_z, "offsetUncoverZ": offset_uncover_z, "offsetLidBottom": offset_lid_bottom}))
-def db_update_link_process(token: str, link: str, process_list: Any) -> Dict[str, Any]: return request_json("POST", "/database/updateLinkProcess/", with_token(token, {"link": link, "processList": process_list}))
-def db_update_process(token: str, area_name: str, process_type: str, process_list: Any) -> Dict[str, Any]: return request_json("POST", "/database/updateProcess/", with_token(token, {"areaName": area_name, "processType": process_type, "processList": process_list}))
+def db_update_area(token: str, area_name_list: str, edit_area_eoat: str, area_forward: str, area_offset_z: str) -> Dict[str, Any]: return request_json("POST", "/database/updateArea/", with_token(token, {"areaNameList": area_name_list, "editAreaEOAT": edit_area_eoat, "areaForward": area_forward, "areaOffsetZ": area_offset_z}))
+def db_update_consumable(token: str, id: str, consumable_type: str, name: str, wells: str, offset_inside_z: str, offset_uncover_z: str, offset_lid_bottom: str) -> Dict[str, Any]: return request_json("POST", "/database/updateConsumable/", with_token(token, {"id": id, "consumableType": consumable_type, "name": name, "wells": wells, "offsetInsideZ": offset_inside_z, "offsetUncoverZ": offset_uncover_z, "offsetLidBottom": offset_lid_bottom}))
+def db_update_link_process(token: str, link: str, process_list: str) -> Dict[str, Any]: return request_json("POST", "/database/updateLinkProcess/", with_token(token, {"link": link, "processList": process_list}))
+def db_update_process(token: str, area_name: str, process_type: str, process_list: str) -> Dict[str, Any]: return request_json("POST", "/database/updateProcess/", with_token(token, {"areaName": area_name, "processType": process_type, "processList": process_list}))
 
 
 # --- initialization ---
@@ -643,7 +519,7 @@ def script_api_inverse(token: str, waypoint: Any) -> Dict[str, Any]: return requ
 def script_api_location_offset(token: str, area: str) -> Dict[str, Any]: return request_json("POST", "/script-api/locationOffset/", with_token(token, {"area": area}))
 def script_api_move(token: str, waypoint: Any, motion: str, vel: float, acc: float) -> Dict[str, Any]: return request_json("POST", "/script-api/move/", with_token(token, {"waypoint": waypoint, "motion": motion, "vel": vel, "acc": acc}))
 def script_api_move_to(token: str, location: str, vel: float, acc: float) -> Dict[str, Any]: return request_json("POST", "/script-api/moveTo/", with_token(token, {"location": location, "vel": vel, "acc": acc}))
-def script_api_peripheral_action(token: str, peripheral: str, action_type: str, value: int) -> Dict[str, Any]: return request_json("POST", "/script-api/peripheralAction/", with_token(token, {"peripheral": peripheral, "actionType": action_type, "value": value}))
+def script_api_peripheral_action(token: str, peripheral: str, action_type: str, value: str) -> Dict[str, Any]: return request_json("POST", "/script-api/peripheralAction/", with_token(token, {"peripheral": peripheral, "actionType": action_type, "value": value}))
 def script_api_pose(token: str, area: str, pose: str) -> Dict[str, Any]: return request_json("POST", "/script-api/pose/", with_token(token, {"area": area, "pose": pose}))
 def script_api_reset_robot(token: str, recover: int, clear: int) -> Dict[str, Any]: return request_json("POST", "/script-api/resetRobot/", with_token(token, {"recover": recover, "clear": clear}))
 def script_api_set_cur_location_offset(token: str, location: str, name: str, location_offset: Any) -> Dict[str, Any]: return request_json("POST", "/script-api/setCurLocationOffset/", with_token(token, {"location": location, "name": name, "location_offset": location_offset}))

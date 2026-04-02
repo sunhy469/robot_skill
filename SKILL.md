@@ -61,7 +61,6 @@ description: |
 - 可选字段不应强行传 `None`。
 
 ### C. Token 与就绪策略
-- 显式传 `--token`：优先使用该 token。
 - 未传 `--token`：按命令类型自动走状态文件与保障逻辑（token-only 或 ready-required）。
 - 不需 token 的查询接口直接调用（如部分 `config_*`、`sync_*`、`script_api_battery` 等）。
 
