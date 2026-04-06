@@ -216,8 +216,10 @@ def resolve_token(token: Optional[str] = None, require_ready: bool = False, requ
     """解析 token：优先显式 token，否则从状态文件与保障逻辑中获取。"""
     if token:
         return token
-    if require_ready or require_initialized:
+    if require_initialized:
         return rc.ensure_initialized()
+    if require_ready:
+        return rc.ensure_token_ready()
     return rc.ensure_token_ready()
 
 
