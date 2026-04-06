@@ -194,6 +194,18 @@ def parse_json_arg(text: Optional[str], arg_name: str) -> Any:
         raise RobotApiError(f"参数 {arg_name} JSON 解析失败: {e}") from e
 
 
+def parse_int_arg(text: Optional[str], arg_name: str, default: Optional[int] = None) -> int:
+    """将 CLI 参数安全解析为 int，支持默认值。"""
+    if text is None:
+        if default is None:
+            raise RobotApiError(f"参数 {arg_name} 不能为空")
+        return default
+    try:
+        return int(text)
+    except Exception as e:
+        raise RobotApiError(f"参数 {arg_name} 需为整数，当前值={text!r}") from e
+
+
 
 def drop_none_fields(data: Dict[str, Any]) -> Dict[str, Any]:
     """过滤值为 None 的可选字段。"""
@@ -452,12 +464,12 @@ def cmd_config_biosen_configurations(args: Namespace) -> Dict[str, Any]:
 
 def cmd_config_configurations(args: Namespace) -> Dict[str, Any]:
     """读取机器人配置。"""
-    return rc.config_configurations(int(args.detail))
+    return rc.config_configurations(parse_int_arg(args.detail, "detail", default=0))
 
 
 def cmd_config_robot_configurations(args: Namespace) -> Dict[str, Any]:
     """读取上装机械臂配置。"""
-    return rc.config_robot_configurations(int(args.detail))
+    return rc.config_robot_configurations(parse_int_arg(args.detail, "detail", default=0))
 
 
 def cmd_config_update_biosen_configurations(args: Namespace) -> Dict[str, Any]:
@@ -514,7 +526,11 @@ def cmd_init_is_initialized(args: Namespace) -> Dict[str, Any]:
 
 def cmd_init_initialize(args: Namespace) -> Dict[str, Any]:
     """执行初始化流程。"""
-    return rc.init_initialize(_tok(args), int(args.homed), int(args.forced))
+    return rc.init_initialize(
+        _tok(args),
+        parse_int_arg(args.homed, "homed", default=1),
+        parse_int_arg(args.forced, "forced", default=0),
+    )
 
 
 def cmd_init_finalize(args: Namespace) -> Dict[str, Any]:
@@ -555,7 +571,14 @@ def cmd_script_api_cur_lock(args: Namespace) -> Dict[str, Any]: return rc.script
 def cmd_script_api_current_pose(args: Namespace) -> Dict[str, Any]: return rc.script_api_current_pose(_tok(args, ready=True), args.model)
 def cmd_script_api_forward(args: Namespace) -> Dict[str, Any]: return rc.script_api_forward(_tok(args, ready=True), parse_json_arg(args.waypoint, "waypoint"))
 def cmd_script_api_get_consumable(args: Namespace) -> Dict[str, Any]: return rc.script_api_get_consumable(_tok(args), int(args.consumable))
-def cmd_script_api_grip_action(args: Namespace) -> Dict[str, Any]: return rc.script_api_grip_action(_tok(args, ready=True), args.action_type, int(args.value), int(args.grasp), int(args.access))
+def cmd_script_api_grip_action(args: Namespace) -> Dict[str, Any]:
+    return rc.script_api_grip_action(
+        _tok(args, ready=True),
+        args.action_type,
+        parse_int_arg(args.value, "value"),
+        parse_int_arg(args.grasp, "grasp", default=0),
+        parse_int_arg(args.access, "access", default=0),
+    )
 def cmd_script_api_inverse(args: Namespace) -> Dict[str, Any]: return rc.script_api_inverse(_tok(args, ready=True), parse_json_arg(args.waypoint, "waypoint"))
 def cmd_script_api_location_offset(args: Namespace) -> Dict[str, Any]: return rc.script_api_location_offset(_tok(args), args.area)
 def cmd_script_api_move(args: Namespace) -> Dict[str, Any]: return rc.script_api_move(_tok(args, ready=True), parse_json_arg(args.waypoint, "waypoint"), args.motion, float(args.vel), float(args.acc))
