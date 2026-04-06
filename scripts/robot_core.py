@@ -472,39 +472,6 @@ def db_get_links_process(token: str, link: str) -> Dict[str, Any]: return reques
 def db_get_log_data(token: str, start_date: str, end_date: str, level: str) -> Dict[str, Any]: return request_json("POST", "/database/getLogData/", with_token(token, {"startDate": start_date, "endDate": end_date, "level": level}))
 def db_get_real_name_list(token: str) -> Dict[str, Any]: return request_json("POST", "/database/getRealNameList/", with_token(token, {}))
 def db_get_waypoints(token: str, area_name: str, pose: str) -> Dict[str, Any]: return request_json("POST", "/database/getWaypoints/", with_token(token, {"areaName": area_name, "Pose": pose}))
-def db_new_area(token: str, name: str, area_type: str = "fixed", tag_area: str = "",
-             eoat: str = "DEFAULT", offset_z: float = 0, pose: List[str] = None,
-             rotation: str = "Forward0", teach_plate_inside_z: float = 0,
-             type_: str = "Normal", upland_z: float = 0) -> Dict[str, Any]:
-    
-        if pose is None:
-            pose = ["Base", "On", "Prepare"]
-    
-        payload = {
-            "AreaType": area_type,
-            "TagArea": tag_area,
-            "eoat": eoat,
-            "nameList": [{
-                "name": name,
-                "realName": "test_area",
-                "areaName": name,
-                "alias": name,
-                "description": name
-            }],
-            "offsetZ": offset_z,
-            "pose": pose,
-            "rotation": rotation,
-            "teachPlateInsideZ": teach_plate_inside_z,
-            "token": token,
-            "type": type_,
-            "uplandZ": upland_z
-        }
-    
-        return request_json("POST", "/database/newArea/", with_token(token,payload))
-    
-                 
-            
-    
 def db_save_consumable(token: str, id: str, consumable_type: str, name: str, wells: str, offset_inside_z: str, offset_uncover_z: str, offset_lid_bottom: str, offset_covered: str, cover_squeexe: str, offset_bottom: str, squeeze: str, unsqueeze: str) -> Dict[str, Any]: return request_json("POST", "/database/saveConsumable/", with_token(token, {"id": id, "consumableType": consumable_type, "name": name, "wells": wells, "offsetInsideZ": offset_inside_z, "offsetUncoverZ": offset_uncover_z, "offsetLidBottom": offset_lid_bottom, "offsetCovered": offset_covered, "cover_squeexe": cover_squeexe, "offsetBottom": offset_bottom, "squeeze": squeeze, "unsqueeze": unsqueeze}))
 def db_save_new_link(token: str, link_name: str, area_from: str, area_to: str, pose_from: str, pose_to: str) -> Dict[str, Any]: return request_json("POST", "/database/saveNewLink/", with_token(token, {"linkNmae": link_name, "areaFrom": area_from, "areaTo": area_to, "poseFrom": pose_from, "poseTo": pose_to}))
 def db_save_waypoint(token: str, area_name: str, pose: str, waypoint: str) -> Dict[str, Any]: return request_json("POST", "/database/saveWaypoint/", with_token(token, {"areaName": area_name, "Pose": pose, "waypoint": waypoint}))
