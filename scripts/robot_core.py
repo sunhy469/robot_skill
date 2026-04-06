@@ -258,7 +258,7 @@ def action_agv_control_keep(token: str) -> Dict[str, Any]:
     return request_json("POST", "/actionControl/agvControlKeep/", with_token(token, {}))
 
 
-def action_agv_control_motion(token: str, vx: float, vy: str, vw: str) -> Dict[str, Any]:
+def action_agv_control_motion(token: str, vx: float, vy: float, vw: float) -> Dict[str, Any]:
     """POST /actionControl/agvControlMotion/"""
     return request_json("POST", "/actionControl/agvControlMotion/", with_token(token, {"vx": vx, "vy": vy, "vw": vw}))
 
@@ -317,7 +317,7 @@ def action_vehicle_home(token: str) -> Dict[str, Any]:
     return request_json("POST", "/actionControl/vehicleHome/", with_token(token, {}))
 
 
-def action_vehicle_move(token: str, position: float, velocity: str) -> Dict[str, Any]:
+def action_vehicle_move(token: str, position: float, velocity: float) -> Dict[str, Any]:
     """POST /actionControl/vehicleMove/"""
     return request_json("POST", "/actionControl/vehicleMove/", with_token(token, {"position": position, "velocity": velocity}))
 
