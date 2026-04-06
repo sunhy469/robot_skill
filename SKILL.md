@@ -90,6 +90,7 @@ python scripts/validate.py <subcommand> [args]
 - “急停/停机” → `robot_shutdown`
 - “停止当前运动” → `robot_stop_motion`
 - “相机抓拍” → `action_get_camera_jpg`
+- “识别板位是否有耗材” → `action_detect_consumable`（内部固定执行 `perform(target=移动到拍摄位置)`，抓拍后默认对比 `references/current_view.jpg` 与 `references/true_view.jpg`）
 - “AGV 去站点” → `action_agv_goto_location --location <name>`
 
 ---
