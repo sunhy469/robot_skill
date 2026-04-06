@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         "db_check_process": ["area"], "db_delete_area": ["delete_name"], "db_delete_consumable": ["consumable_id"], "db_delete_link": ["link_name"],
         "db_find_areas": ["name", "description", "rotation"], "db_find_links_data": ["area_name1", "area_name2"], "db_get_area_pose": ["area_name"],
         "db_get_areas_process": ["area_name", "process_type"], "db_get_links_process": ["link"], "db_get_log_data": ["start_date", "end_date", "level"],
-        "db_get_waypoints": ["area_name", "pose"], "db_new_area": ["name_list", "eoat", "pose", "rotation", "offset_z", "type_value", "area_type", "tag_area", "upland_z", "teach_plate_inside_z"],
+        "db_get_waypoints": ["area_name", "pose"],
         "db_save_consumable": ["id", "consumable_type", "name", "wells", "offset_inside_z", "offset_uncover_z", "offset_lid_bottom", "offset_covered", "cover_squeexe", "offset_bottom", "squeeze", "unsqueeze"],
         "db_save_new_link": ["link_name", "area_from", "area_to", "pose_from", "pose_to"], "db_save_waypoint": ["area_name", "pose", "waypoint"],
         "db_update_area": ["area_name_list", "edit_area_eoat", "area_forward", "area_offset_z"], "db_update_consumable": ["id", "consumable_type", "name", "wells", "offset_inside_z", "offset_uncover_z", "offset_lid_bottom"],
