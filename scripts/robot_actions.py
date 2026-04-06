@@ -206,6 +206,18 @@ def parse_int_arg(text: Optional[str], arg_name: str, default: Optional[int] = N
         raise RobotApiError(f"参数 {arg_name} 需为整数，当前值={text!r}") from e
 
 
+def parse_float_arg(text: Optional[str], arg_name: str, default: Optional[float] = None) -> float:
+    """将 CLI 参数安全解析为 float，支持默认值。"""
+    if text is None:
+        if default is None:
+            raise RobotApiError(f"参数 {arg_name} 不能为空")
+        return default
+    try:
+        return float(text)
+    except Exception as e:
+        raise RobotApiError(f"参数 {arg_name} 需为浮点数，当前值={text!r}") from e
+
+
 
 def drop_none_fields(data: Dict[str, Any]) -> Dict[str, Any]:
     """过滤值为 None 的可选字段。"""
@@ -269,7 +281,12 @@ def cmd_action_agv_control_keep(args: Namespace) -> Dict[str, Any]:
 
 def cmd_action_agv_control_motion(args: Namespace) -> Dict[str, Any]:
     """下发 AGV 速度控制指令。"""
-    return rc.action_agv_control_motion(_tok(args, ready=True), args.vx,args.vy, args.vw)
+    return rc.action_agv_control_motion(
+        _tok(args, ready=True),
+        parse_float_arg(args.vx, "vx", default=30.0),
+        parse_float_arg(args.vy, "vy", default=30.0),
+        parse_float_arg(args.vw, "vw", default=20.0),
+    )
 
 
 def cmd_action_agv_control_stop(args: Namespace) -> Dict[str, Any]:
@@ -360,7 +377,11 @@ def cmd_action_vehicle_home(args: Namespace) -> Dict[str, Any]:
 
 def cmd_action_vehicle_move(args: Namespace) -> Dict[str, Any]:
     """车辆定点移动。"""
-    return rc.action_vehicle_move(_tok(args, ready=True), float(args.position), float(args.velocity))
+    return rc.action_vehicle_move(
+        _tok(args, ready=True),
+        parse_float_arg(args.position, "position"),
+        parse_float_arg(args.velocity, "velocity"),
+    )
 
 
 def cmd_action_vehicle_reset(args: Namespace) -> Dict[str, Any]:
