@@ -6,11 +6,111 @@ from typing import Any, Dict, Optional
 
 import robot_core as rc
 from robot_core import RobotApiError
+import requests
 
 
 # =========================
 # 通用参数处理
 # =========================
+
+
+def extract_result_value(response_data: Dict[str, Any], key: str, default: Any = None) -> Any:
+    """
+    从接口返回中提取指定字段，兼容根层和 data 层两种结构。
+
+    参数：
+        response_data: 接口返回 JSON
+        key: 字段名
+        default: 默认值
+
+    返回：
+        Any: 提取到的字段值
+    """
+    if not isinstance(response_data, dict):
+        return default
+
+    if key in response_data:
+        return response_data.get(key, default)
+
+    data = response_data.get("data", {})
+    if isinstance(data, dict) and key in data:
+        return data.get(key, default)
+
+    return default
+
+def extract_camera_jpg_path(response_data: Dict[str, Any]) -> str:
+    """
+    从 get_camera_jpg 的返回结果中提取图片路径。
+
+    参数：
+        response_data: get_camera_jpg 的响应 JSON
+
+    返回：
+        str: 图片路径
+    """
+    data = response_data.get("data", {})
+    if isinstance(data, dict) and data.get("jpg"):
+        return str(data["jpg"])
+
+    jpg_path = extract_result_value(response_data, "jpg", "")
+    if jpg_path:
+        return str(jpg_path)
+
+    raise RobotApiError(f"相机返回结果中未找到 jpg 路径：{(response_data)}")
+
+def join_url(base_url: str, path: str) -> str:
+    """
+    拼接完整接口地址。
+
+    参数：
+        base_url: 接口服务根地址
+        path: 接口路径或完整 URL
+
+    返回：
+        str: 完整 URL
+    """
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    return base_url.rstrip("/") + "/" + path.lstrip("/")
+
+def request_bytes(method: str, path: str) -> bytes:
+    """
+    发送请求并返回二进制数据，主要用于下载相机图片。
+
+    参数：
+        method: 请求方法
+        path: 图片路径或完整 URL
+
+    返回：
+        bytes: 二进制内容
+    """
+    url = join_url("http://192.168.193.10:8300", path)
+
+    try:
+        response = requests.request(
+            method=method.upper(),
+            url=url,
+            timeout=5.0
+        )
+    except requests.RequestException as e:
+        raise RobotApiError(f"下载失败：{method} {url}，错误：{e}") from e
+
+    if response.status_code != 200:
+        raise RobotApiError(f"下载图片失败：HTTP {response.status_code}，内容：{response.text}")
+
+    return response.content
+
+def fetch_image_bytes(image_path: str) -> bytes:
+    """
+    根据图片路径下载图片二进制内容。
+
+    参数：
+        image_path: 图片路径或完整 URL
+
+    返回：
+        bytes: 图片二进制内容
+    """
+    return request_bytes("GET", image_path)
 
 def parse_json_arg(text: Optional[str], arg_name: str) -> Any:
     """将 CLI 的 JSON 字符串参数解析为 Python 对象。"""
@@ -113,7 +213,27 @@ def cmd_action_calibrate_location(args: Namespace) -> Dict[str, Any]:
 
 def cmd_action_get_camera_jpg(args: Namespace) -> Dict[str, Any]:
     """获取相机抓拍信息。"""
-    return rc.action_get_camera_jpg(_tok(args, ready=True))
+    camera_data =  rc.action_get_camera_jpg(_tok(args, ready=True))
+    jpg_path = extract_camera_jpg_path(camera_data)
+    result = {
+        "camera_response": camera_data,
+        "jpg_path": jpg_path
+    }
+    # 默认保存路径
+    if save_path is None:
+        import os
+        # 创建references目录如果不存在
+        references_dir = os.path.join(os.path.dirname(__file__), "..", "references")
+        os.makedirs(references_dir, exist_ok=True)
+        save_path = os.path.join(references_dir, "current_view.jpg")
+
+    # 保存图片（总是覆盖）
+    content = fetch_image_bytes(jpg_path)
+    with open(save_path, "wb") as f:
+        f.write(content)
+    result["saved_to"] = save_path
+
+    return result
 
 
 def cmd_action_get_camera_offset(args: Namespace) -> Dict[str, Any]:
@@ -138,7 +258,7 @@ def cmd_action_vehicle_home(args: Namespace) -> Dict[str, Any]:
 
 def cmd_action_vehicle_move(args: Namespace) -> Dict[str, Any]:
     """车辆定点移动。"""
-    return rc.action_vehicle_move(_tok(args, ready=True), args.position, args.velocity)
+    return rc.action_vehicle_move(_tok(args, ready=True), float(args.position), float(args.velocity))
 
 
 def cmd_action_vehicle_reset(args: Namespace) -> Dict[str, Any]:
@@ -202,7 +322,7 @@ def cmd_command_uncover(args: Namespace) -> Dict[str, Any]:
 
 def cmd_command_perform(args: Namespace) -> Dict[str, Any]:
     """执行区域动作。"""
-    return rc.command_perform(_tok(args, ready=True), args.target, args.consumable, args.vel, args.acc, args.wait)
+    return rc.command_perform(_tok(args, ready=True), args.target, args.vel, args.acc, args.wait)
 
 
 def cmd_command_pick(args: Namespace) -> Dict[str, Any]:

@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("action_agv_goto_location"); _add_token(p); p.add_argument("--location", required=True)
     p = sub.add_parser("action_agv_load_map"); _add_token(p); p.add_argument("--map_name", required=True)
     p = sub.add_parser("action_calibrate_location"); _add_token(p); p.add_argument("--area", required=True)
-    p = sub.add_parser("action_grip_control"); _add_token(p); p.add_argument("--action_type", required=True); p.add_argument("--value", type=str, required=True)
+    p = sub.add_parser("action_grip_control"); _add_token(p); p.add_argument("--action_type", required=True); p.add_argument("--value", type=str, required=False)
     p = sub.add_parser("action_peripheral_control"); _add_token(p); p.add_argument("--peripheral", required=True); p.add_argument("--action_type", required=True); p.add_argument("--value", type=str, required=True)
     p = sub.add_parser("action_vehicle_move"); _add_token(p); p.add_argument("--position", type=str,  required=True); p.add_argument("--velocity",  type=str, required=True)
 
@@ -136,6 +136,51 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ["script_list", "script_status", "script_stop", "sync_area"]:
         p = sub.add_parser(name)
         if name != "sync_area": _add_token(p)
+
+    # 创建新区域
+    parser_new_area = sub.add_parser("new_area")
+    _add_token(parser_new_area)
+    parser_new_area.add_argument("--name", required=True)
+    parser_new_area.add_argument("--area_type", default="fixed")
+    parser_new_area.add_argument("--tag_area", default="")
+    parser_new_area.add_argument("--eoat", default="DEFAULT")
+    parser_new_area.add_argument("--offset_z", type=float, default=0)
+    parser_new_area.add_argument("--pose", default=None)
+    parser_new_area.add_argument("--rotation", default="Forward0")
+    parser_new_area.add_argument("--teach_plate_inside_z", type=float, default=0)
+    parser_new_area.add_argument("--type_", dest="type_", default="Normal")
+    parser_new_area.add_argument("--upland_z", type=float, default=0)
+
+    # 获取区域流程
+    parser_get_areas_process = sub.add_parser("get_areas_process")
+    _add_token(parser_get_areas_process)
+    parser_get_areas_process.add_argument("--area_name", required=True)
+    parser_get_areas_process.add_argument("--process_type", default="Work")
+
+    # 更新区域流程
+    parser_update_process = sub.add_parser("update_process")
+    _add_token(parser_update_process)
+    parser_update_process.add_argument("--area_name", required=True)
+    parser_update_process.add_argument("--process_list", required=True)
+    parser_update_process.add_argument("--process_type", default="Work")
+
+    # 获取当前位姿
+    parser_get_current_waypoint = sub.add_parser("get_current_waypoint")
+    _add_token(parser_get_current_waypoint)
+
+    # 保存位姿
+    parser_save_waypoint = sub.add_parser("save_waypoint")
+    _add_token(parser_save_waypoint)
+    parser_save_waypoint.add_argument("--waypoint", required=True)
+    parser_save_waypoint.add_argument("--area_name", required=True)
+    parser_save_waypoint.add_argument("--pose", required=True)
+
+    # 删除 Pose
+    parser_delete_pose = sub.add_parser("delete_pose")
+    _add_token(parser_delete_pose)
+    parser_delete_pose.add_argument("--area_name", required=True)
+    parser_delete_pose.add_argument("--pose", required=True)
+    parser_delete_pose.add_argument("--process_type", default="Work")
 
     return parser
 
