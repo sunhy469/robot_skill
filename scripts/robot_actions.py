@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from argparse import Namespace
 from typing import Any, Dict, Optional
 
@@ -112,6 +113,77 @@ def fetch_image_bytes(image_path: str) -> bytes:
     """
     return request_bytes("GET", image_path)
 
+
+def _default_references_dir() -> Path:
+    """返回 references 目录并确保存在。"""
+    references_dir = Path(__file__).resolve().parent.parent / "references"
+    references_dir.mkdir(parents=True, exist_ok=True)
+    return references_dir
+
+
+def save_image_bytes(content: bytes, save_path: Optional[str] = None, default_name: str = "current_view.jpg") -> str:
+    """
+    将图片字节内容保存到本地文件，默认写入 references 目录。
+    """
+    if save_path is None:
+        target_path = _default_references_dir() / default_name
+    else:
+        target_path = Path(save_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(target_path, "wb") as f:
+        f.write(content)
+    return str(target_path.resolve())
+
+
+def calculate_image_similarity(path_a: str, path_b: str) -> float:
+    """
+    使用 Pillow 计算两张图的像素相似度（0~1）。
+    """
+    try:
+        from PIL import Image, ImageOps
+    except Exception as e:
+        raise RobotApiError("未安装 Pillow，无法进行图像相似度比对，请先安装: pip install pillow") from e
+
+    with Image.open(path_a) as img_a, Image.open(path_b) as img_b:
+        gray_a = ImageOps.grayscale(img_a)
+        gray_b = ImageOps.grayscale(img_b).resize(gray_a.size)
+
+        pixels_a = list(gray_a.getdata())
+        pixels_b = list(gray_b.getdata())
+        if not pixels_a:
+            return 0.0
+
+        # 平均绝对差 -> 相似度
+        mad = sum(abs(int(pa) - int(pb)) for pa, pb in zip(pixels_a, pixels_b)) / len(pixels_a)
+        similarity = max(0.0, min(1.0, 1.0 - mad / 255.0))
+        return similarity
+
+
+def detect_consumable_by_reference(
+    true_view_path: str,
+    current_view_path: str,
+    similarity_threshold: float = 0.97,
+) -> Dict[str, Any]:
+    """
+    基于参考图判断板位是否有耗材：
+    当前图与 true_view 一致或足够相似，判定为有耗材。
+    """
+    if not Path(true_view_path).exists():
+        raise RobotApiError(f"参考图片不存在：{true_view_path}")
+    if not Path(current_view_path).exists():
+        raise RobotApiError(f"当前图片不存在：{current_view_path}")
+
+    similarity = calculate_image_similarity(true_view_path, current_view_path)
+    has_consumable = similarity >= similarity_threshold
+    return {
+        "has_consumable": has_consumable,
+        "similarity": similarity,
+        "threshold": similarity_threshold,
+        "true_view_path": str(Path(true_view_path).resolve()),
+        "current_view_path": str(Path(current_view_path).resolve()),
+    }
+
 def parse_json_arg(text: Optional[str], arg_name: str) -> Any:
     """将 CLI 的 JSON 字符串参数解析为 Python 对象。"""
     if text is None:
@@ -213,27 +285,43 @@ def cmd_action_calibrate_location(args: Namespace) -> Dict[str, Any]:
 
 def cmd_action_get_camera_jpg(args: Namespace) -> Dict[str, Any]:
     """获取相机抓拍信息。"""
-    camera_data =  rc.action_get_camera_jpg(_tok(args, ready=True))
+    camera_data = rc.action_get_camera_jpg(_tok(args, ready=True))
     jpg_path = extract_camera_jpg_path(camera_data)
     result = {
         "camera_response": camera_data,
         "jpg_path": jpg_path
     }
-    # 默认保存路径
-    if save_path is None:
-        import os
-        # 创建references目录如果不存在
-        references_dir = os.path.join(os.path.dirname(__file__), "..", "references")
-        os.makedirs(references_dir, exist_ok=True)
-        save_path = os.path.join(references_dir, "current_view.jpg")
-
-    # 保存图片（总是覆盖）
     content = fetch_image_bytes(jpg_path)
-    with open(save_path, "wb") as f:
-        f.write(content)
-    result["saved_to"] = save_path
+    result["saved_to"] = save_image_bytes(content, default_name="current_view.jpg")
 
     return result
+
+
+def cmd_action_detect_consumable(args: Namespace) -> Dict[str, Any]:
+    """
+    执行 perform 后抓拍当前视图，并与 references/true_view 对比判断是否有耗材。
+    """
+    token = _tok(args, ready=True)
+    perform_result = rc.command_perform(token, "移动到拍摄位置")
+
+    camera_data = rc.action_get_camera_jpg(_tok(args, ready=True))
+    jpg_path = extract_camera_jpg_path(camera_data)
+    content = fetch_image_bytes(jpg_path)
+    saved_current = save_image_bytes(content, default_name="current_view.jpg")
+
+    true_view = str(_default_references_dir() / "true_view.jpg")
+    compare_result = detect_consumable_by_reference(
+        true_view_path=true_view,
+        current_view_path=saved_current,
+        similarity_threshold=0.97,
+    )
+    return {
+        "perform_result": perform_result,
+        "camera_response": camera_data,
+        "jpg_path": jpg_path,
+        "saved_current_view": saved_current,
+        "compare_result": compare_result,
+    }
 
 
 def cmd_action_get_camera_offset(args: Namespace) -> Dict[str, Any]:

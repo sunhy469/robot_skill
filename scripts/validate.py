@@ -42,8 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("access_enum"); p.add_argument("--key")
     p = sub.add_parser("access_reset_robot"); _add_token(p); p.add_argument("--recover", default=1); p.add_argument("--clear", default=1)
 
-    for name in ["action_agv_control_keep", "action_agv_control_stop", "action_agv_get_map_list", "action_get_camera_jpg", "action_get_camera_offset", "action_vehicle_home", "action_vehicle_reset", "action_vehicle_stop"]:
+    for name in ["action_agv_control_keep", "action_agv_control_stop", "action_agv_get_map_list", "action_get_camera_offset", "action_vehicle_home", "action_vehicle_reset", "action_vehicle_stop"]:
         p = sub.add_parser(name); _add_token(p)
+
+    p = sub.add_parser("action_get_camera_jpg"); _add_token(p)
+    p = sub.add_parser("action_detect_consumable"); _add_token(p)
 
     p = sub.add_parser("action_agv_control_motion"); _add_token(p); 
     p.add_argument('--vx', type=str, default='30.0', help='X轴速度，字符串类型')
