@@ -530,6 +530,7 @@ def cmd_db_get_links_process(args: Namespace) -> Dict[str, Any]: return rc.db_ge
 def cmd_db_get_log_data(args: Namespace) -> Dict[str, Any]: return rc.db_get_log_data(_tok(args), args.start_date, args.end_date, args.level)
 def cmd_db_get_real_name_list(args: Namespace) -> Dict[str, Any]: return rc.db_get_real_name_list(_tok(args))
 def cmd_db_get_waypoints(args: Namespace) -> Dict[str, Any]: return rc.db_get_waypoints(_tok(args), args.area_name, args.pose)
+def cmd_db_new_area(args: Namespace) -> Dict[str, Any]: return rc.db_new_area(_tok(args), args.name_list, args.eoat, args.pose, args.rotation, args.offset_z, args.type, args.area_type, args.tag_area, args.upland_z, args.teach_plate_inside_z)
 def cmd_db_save_consumable(args: Namespace) -> Dict[str, Any]: return rc.db_save_consumable(_tok(args), args.id, args.consumable_type, args.name, args.wells, args.offset_inside_z, args.offset_uncover_z, args.offset_lid_bottom, args.offset_covered,args.cover_squeexe, args.offset_bottom,args.squeeze, args.unsqueeze)
 def cmd_db_save_new_link(args: Namespace) -> Dict[str, Any]: return rc.db_save_new_link(_tok(args), args.link_name, args.area_from, args.area_to, args.pose_from, args.pose_to)
 def cmd_db_save_waypoint(args: Namespace) -> Dict[str, Any]: return rc.db_save_waypoint(_tok(args), args.area_name, args.pose,args.waypoint)
