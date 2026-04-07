@@ -228,6 +228,10 @@ def resolve_token(token: Optional[str] = None, require_ready: bool = False, requ
     """解析 token：优先显式 token，否则从状态文件与保障逻辑中获取。"""
     if token:
         return token
+    # 非初始化流程优先复用本地 state 文件中的 token，避免每次动作都触发 ensure_token_ready()
+    state_token = str((rc.load_state() or {}).get("token", "") or "")
+    if state_token:
+        return state_token
     if require_initialized:
         return rc.ensure_initialized()
     if require_ready:
