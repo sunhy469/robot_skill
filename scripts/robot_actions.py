@@ -340,6 +340,16 @@ def cmd_action_agv_translate(args: Namespace) -> Dict[str, Any]:
         port=parse_int_arg(args.port, "port", default=19206),
     )
 
+def cmd_action_agv_turn(args: Namespace) -> Dict[str, Any]:
+    """通过 AGV 原生 TCP 下发转动任务。"""
+    return rc.action_agv_turn(
+        angle=parse_float_arg(args.angle, "angle"),
+        vw=parse_float_arg(args.vw, "vw"),
+        mode=parse_int_arg(args.mode, "mode", default=0),
+        ip=args.ip,
+        port=parse_int_arg(args.port, "port", default=19206),
+    )
+
 
 def cmd_action_calibrate_location(args: Namespace) -> Dict[str, Any]:
     """执行站点标定。"""

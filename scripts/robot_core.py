@@ -27,6 +27,8 @@ SEER_CMD_ERROR = -10002
 SEER_JSON_ERROR = -10003
 SEER_AGV_TRANSLATE_REQ = 3055
 SEER_AGV_TRANSLATE_RES = 13055
+SEER_AGV_TURN_REQ = 3056
+SEER_AGV_TURN_RES = 13056
 STATE_FILE = os.path.join(os.path.dirname(__file__), "robot_state.json")
 
 logger = logging.getLogger("robot_core")
@@ -206,7 +208,10 @@ class NetProtocol:
     HEAD = 0x5A
     VERSION = 0x01
     FRAME_LEN = 0x10
-    CMDMAP = {SEER_AGV_TRANSLATE_REQ: SEER_AGV_TRANSLATE_RES}
+    CMDMAP = {
+        SEER_AGV_TRANSLATE_REQ: SEER_AGV_TRANSLATE_RES,
+        SEER_AGV_TURN_REQ: SEER_AGV_TURN_RES,
+    }
 
     def __init__(self, ip: str, port: int, timeout: float = AGV_TCP_TIMEOUT):
         self._ip = ip
@@ -515,6 +520,60 @@ def action_agv_translate(
         "port": int(port),
         "request_id": SEER_AGV_TRANSLATE_REQ,
         "response_id": SEER_AGV_TRANSLATE_RES,
+        "request": req_payload,
+        "result": {
+            "index": response.index,
+            "cmd": response.cmd,
+            "create_on": response.create_on,
+            "ret_code": response.ret_code,
+            "err_msg": response.err_msg,
+            "msg": response.msg,
+        },
+    }
+
+
+def action_agv_turn(
+    angle: Number,
+    vw: Number,
+    mode: Optional[int] = None,
+    ip: str = AGV_TCP_IP,
+    port: int = AGV_TCP_PORT,
+) -> Dict[str, Any]:
+    """
+    AGV 转动（固定角速度旋转固定角度）原生 TCP 接口。
+
+    对应：
+      - 请求编号: 3056 (robot_task_turn_req)
+      - 响应编号: 13056 (robot_task_turn_res)
+    """
+    if not isinstance(angle, Number):
+        raise RobotApiError("'angle' 必须为数字")
+    if not isinstance(vw, Number):
+        raise RobotApiError("'vw' 必须为数字")
+
+    req_payload: Dict[str, Any] = {"angle": float(angle), "vw": float(vw)}
+    if mode is not None:
+        if not isinstance(mode, int):
+            raise RobotApiError("'mode' 必须为整数或留空")
+        req_payload["mode"] = mode
+
+    message = json.dumps(req_payload, ensure_ascii=False, separators=(",", ":"))
+    net = NetProtocol(ip=ip, port=int(port), timeout=AGV_TCP_TIMEOUT)
+    try:
+        response = net.interact(SEER_AGV_TURN_REQ, message)
+    finally:
+        net.finalize()
+
+    if response.ret_code != SEER_NO_ERROR:
+        raise RobotBusinessError(
+            f"AGV 转动执行失败，ret_code={response.ret_code}，err_msg={response.err_msg}，msg={json_dumps(response.msg)}"
+        )
+
+    return {
+        "ip": ip,
+        "port": int(port),
+        "request_id": SEER_AGV_TURN_REQ,
+        "response_id": SEER_AGV_TURN_RES,
         "request": req_payload,
         "result": {
             "index": response.index,
