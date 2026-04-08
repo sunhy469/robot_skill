@@ -4,7 +4,9 @@ import json
 import logging
 import os
 import socket
+import threading
 import time
+from dataclasses import dataclass
 from numbers import Number
 from typing import Any, Dict, Optional
 
@@ -19,6 +21,12 @@ API_TIMEOUT = 5.0
 AGV_TCP_IP = "192.168.193.5"
 AGV_TCP_PORT = 19206
 AGV_TCP_TIMEOUT = 5.0
+SEER_NO_ERROR = 0
+SEER_SEND_TIMED_OUT = -10001
+SEER_CMD_ERROR = -10002
+SEER_JSON_ERROR = -10003
+SEER_AGV_TRANSLATE_REQ = 3055
+SEER_AGV_TRANSLATE_RES = 13055
 STATE_FILE = os.path.join(os.path.dirname(__file__), "robot_state.json")
 
 logger = logging.getLogger("robot_core")
@@ -49,6 +57,16 @@ class RobotStateError(RobotApiError):
 
 class RobotTcpError(RobotApiError):
     """TCP 协议调用异常。"""
+
+
+@dataclass
+class SeerTcpResponse:
+    index: int
+    cmd: int
+    msg: Any
+    create_on: str
+    ret_code: int
+    err_msg: str
 
 
 # =========================
@@ -170,35 +188,161 @@ def request_bytes(method: str, path: str) -> bytes:
     return resp.content
 
 
-def tcp_request_json(ip: str, port: int, payload: Dict[str, Any], timeout: float = AGV_TCP_TIMEOUT) -> Dict[str, Any]:
-    """
-    发送 TCP JSON 请求并读取响应。
+def _int_to_hexs(value: int, byte_num: int = 1) -> str:
+    if value < 0:
+        raise ValueError("value must be >= 0")
+    return value.to_bytes(byte_num, byteorder="big", signed=False).hex()
 
-    协议采用 JSON 文本 + 换行分隔，便于对接原生 TCP 服务。
-    """
-    text = json.dumps(payload, ensure_ascii=False) + "\n"
-    logger.info("tcp_request_json -> %s:%s payload=%s", ip, port, payload)
-    try:
-        with socket.create_connection((ip, int(port)), timeout=timeout) as conn:
-            conn.sendall(text.encode("utf-8"))
-            conn.shutdown(socket.SHUT_WR)
-            chunks = []
+
+def _hexs_to_int(hexs: str) -> int:
+    if not hexs:
+        return 0
+    return int(hexs, 16)
+
+
+class NetProtocol:
+    """SEER 原生 TCP 帧协议封装。"""
+
+    HEAD = 0x5A
+    VERSION = 0x01
+    FRAME_LEN = 0x10
+    CMDMAP = {SEER_AGV_TRANSLATE_REQ: SEER_AGV_TRANSLATE_RES}
+
+    def __init__(self, ip: str, port: int, timeout: float = AGV_TCP_TIMEOUT):
+        self._ip = ip
+        self._port = int(port)
+        self._timeout = timeout
+        self._socket: Optional[socket.socket] = None
+        self._buffer = b""
+        self._index = 0
+        self._lock = threading.Lock()
+        self._connect()
+
+    def _connect(self) -> None:
+        try:
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket.settimeout(self._timeout)
+            self._socket.connect((self._ip, self._port))
+        except Exception as err:
+            self._socket = None
+            raise RobotTcpError(f"Can not initialize NetProtocol with error: {repr(err)}") from err
+
+    def finalize(self) -> None:
+        if self._socket is None:
+            return
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        try:
+            self._socket.close()
+        except Exception:
+            pass
+        self._socket = None
+        self._buffer = b""
+
+    def reconnect(self) -> None:
+        self.finalize()
+        self._connect()
+
+    def interact(self, cmd: int, message: str) -> SeerTcpResponse:
+        if self._socket is None:
+            raise RobotTcpError("Socket is unavailable.")
+        if cmd not in self.CMDMAP:
+            raise RobotTcpError(f"Unsupported cmd: {cmd}")
+
+        with self._lock:
+            index = self._get_index()
+            frame_hex = self._to_frame(index=index, cmd=cmd, message=message)
+            frame_bytes = bytes.fromhex(frame_hex)
+            response_prefix = bytes.fromhex(self._to_response_prefix(index=index))
+            expected_res_cmd = self.CMDMAP[cmd]
+
+            try:
+                self._socket.send(frame_bytes)
+            except Exception:
+                self.reconnect()
+                assert self._socket is not None
+                self._socket.send(frame_bytes)
+
+            start = time.monotonic()
             while True:
-                data = conn.recv(4096)
-                if not data:
-                    break
-                chunks.append(data)
-    except OSError as e:
-        raise RobotTcpError(f"TCP 请求失败：{ip}:{port}，错误：{e}") from e
+                if time.monotonic() - start > self._timeout:
+                    return SeerTcpResponse(index, expected_res_cmd, "", "", SEER_SEND_TIMED_OUT, "Send request timeout")
 
-    raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
-    if not raw:
-        return {}
-    try:
-        return json.loads(raw)
-    except Exception:
-        # 服务端若返回非 JSON，仍保留原始内容方便排障
-        return {"raw": raw}
+                try:
+                    data = self._socket.recv(4096)
+                    if data == b"":
+                        raise RobotTcpError("Receive empty msg.")
+                    self._buffer += data
+                except socket.timeout:
+                    continue
+                except Exception:
+                    self.reconnect()
+                    continue
+
+                key = self._buffer.find(response_prefix)
+                if key == -1:
+                    continue
+                self._buffer = self._buffer[key:]
+                if len(self._buffer) < self.FRAME_LEN:
+                    continue
+
+                frame_head = self._buffer[: self.FRAME_LEN]
+                body_len = _hexs_to_int(frame_head[4:8].hex())
+                resp_cmd = _hexs_to_int(frame_head[8:10].hex())
+
+                if resp_cmd != expected_res_cmd:
+                    return SeerTcpResponse(
+                        index=index,
+                        cmd=expected_res_cmd,
+                        msg="",
+                        create_on="",
+                        ret_code=SEER_CMD_ERROR,
+                        err_msg=f"Return Command is not matching: expect {expected_res_cmd}, got {resp_cmd}",
+                    )
+
+                total_len = self.FRAME_LEN + body_len
+                if len(self._buffer) < total_len:
+                    continue
+
+                body = self._buffer[self.FRAME_LEN:total_len]
+                self._buffer = self._buffer[total_len:]
+
+                try:
+                    json_frame = json.loads(body.decode("utf-8"), strict=False)
+                except Exception as err:
+                    return SeerTcpResponse(index, expected_res_cmd, "", "", SEER_JSON_ERROR, f"Load JSON error: {repr(err)}")
+
+                return SeerTcpResponse(
+                    index=index,
+                    cmd=expected_res_cmd,
+                    msg=json_frame,
+                    create_on=str(json_frame.get("create_on", "")),
+                    ret_code=int(json_frame.get("ret_code", 0) or 0),
+                    err_msg=str(json_frame.get("err_msg", "")),
+                )
+
+    def _get_index(self) -> int:
+        self._index += 1
+        if self._index > 65535:
+            self._index = 0
+        return self._index
+
+    def _to_frame(self, index: int, cmd: int, message: str) -> str:
+        body = message.encode("utf-8")
+        return (
+            _int_to_hexs(self.HEAD)
+            + _int_to_hexs(self.VERSION)
+            + _int_to_hexs(index, byte_num=2)
+            + _int_to_hexs(len(body), byte_num=4)
+            + _int_to_hexs(cmd, byte_num=2)
+            + _int_to_hexs(0, byte_num=6)
+            + body.hex()
+        )
+
+    def _to_response_prefix(self, index: int) -> str:
+        return _int_to_hexs(self.HEAD) + _int_to_hexs(self.VERSION) + _int_to_hexs(index, byte_num=2)
 
 
 def require_token(token: str) -> None:
@@ -354,20 +498,32 @@ def action_agv_translate(
             raise RobotApiError("'mode' 必须为整数或留空")
         req_payload["mode"] = mode
 
-    # 模拟 netprotocol.interact(3055, msg) 的风格，统一封装命令编号与参数。
-    request_body = {"id": 3055, "msg": json.dumps(req_payload, ensure_ascii=False)}
-    response = tcp_request_json(ip=ip, port=int(port), payload=request_body)
-    ret_code = int(response.get("ret_code", 0) or 0)
-    if ret_code != 0:
-        err_msg = str(response.get("err_msg", "AGV 平动执行失败"))
-        raise RobotBusinessError(f"AGV 平动执行失败，ret_code={ret_code}，err_msg={err_msg}")
+    message = json.dumps(req_payload, ensure_ascii=False, separators=(",", ":"))
+    net = NetProtocol(ip=ip, port=int(port), timeout=AGV_TCP_TIMEOUT)
+    try:
+        response = net.interact(SEER_AGV_TRANSLATE_REQ, message)
+    finally:
+        net.finalize()
+
+    if response.ret_code != SEER_NO_ERROR:
+        raise RobotBusinessError(
+            f"AGV 平动执行失败，ret_code={response.ret_code}，err_msg={response.err_msg}，msg={json_dumps(response.msg)}"
+        )
 
     return {
         "ip": ip,
         "port": int(port),
-        "request_id": 3055,
+        "request_id": SEER_AGV_TRANSLATE_REQ,
+        "response_id": SEER_AGV_TRANSLATE_RES,
         "request": req_payload,
-        "response": response,
+        "result": {
+            "index": response.index,
+            "cmd": response.cmd,
+            "create_on": response.create_on,
+            "ret_code": response.ret_code,
+            "err_msg": response.err_msg,
+            "msg": response.msg,
+        },
     }
 
 

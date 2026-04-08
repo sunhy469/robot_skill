@@ -1,3 +1,4 @@
+
 """OpenClaw 机器人 Skill CLI 入口（兼容壳）。"""
 
 from __future__ import annotations

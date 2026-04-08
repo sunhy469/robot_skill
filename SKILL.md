@@ -81,10 +81,10 @@ python scripts/validate.py <subcommand> [args]
 ---
 
 ## 5. 语义映射（自然语言 -> 命令）
-
-- “打开夹爪” → `action_grip_control --action_type open --value 0`
-- “关闭夹爪” → `action_grip_control --action_type close --value 0`
-- “夹爪到指定位置” → `action_grip_control --action_type position --value <int>`
+- “下裝工具向前移动” → `action_agv_translate --dist 0.1`
+- “打开夹爪” → `action_grip_control --action_type Open --value 0`
+- “关闭夹爪” → `action_grip_control --action_type Close --value 0`
+- “夹爪到指定位置” → `action_grip_control --action_type Position --value <int>`
 - “执行区域动作/perform” → `command_perform --target <target> [--vel --acc --wait]`
 - “回安全位” → `command_return_to_safe --target Safe`
 - “急停/停机” → `robot_shutdown`
