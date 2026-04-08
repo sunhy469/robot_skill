@@ -136,28 +136,45 @@ def save_image_bytes(content: bytes, save_path: Optional[str] = None, default_na
     return str(target_path.resolve())
 
 
-def calculate_image_similarity(path_a: str, path_b: str) -> float:
+def block_based_similarity(path_a: str, path_b: str, blocks: int = 8) -> float:
     """
-    使用 Pillow 计算两张图的像素相似度（0~1）。
+    分块比对，找出异常区域占比
+    适合检测“板位是否有耗材”这种局部变化
     """
-    try:
-        from PIL import Image, ImageOps
-    except Exception as e:
-        raise RobotApiError("未安装 Pillow，无法进行图像相似度比对，请先安装: pip install pillow") from e
+    from PIL import Image, ImageOps
 
     with Image.open(path_a) as img_a, Image.open(path_b) as img_b:
         gray_a = ImageOps.grayscale(img_a)
         gray_b = ImageOps.grayscale(img_b).resize(gray_a.size)
+        
+        w, h = gray_a.size
+        block_w = w // blocks
+        block_h = h // blocks
+        
+        diff_blocks = 0
+        total_blocks = blocks * blocks
+        
+        for i in range(blocks):
+            for j in range(blocks):
+                left = i * block_w
+                top = j * block_h
+                right = left + block_w
+                bottom = top + block_h
+                
+                block_a = gray_a.crop((left, top, right, bottom))
+                block_b = gray_b.crop((left, top, right, bottom))
+                
+                # 计算该块的平均亮度差异
+                pixels_a = list(block_a.getdata())
+                pixels_b = list(block_b.getdata())
+                avg_diff = sum(abs(pa - pb) for pa, pb in zip(pixels_a, pixels_b)) / len(pixels_a)
+                
+                if avg_diff > 50:  # 差异阈值可调
+                    diff_blocks += 1
+        
+        # 相似度 = 1 - 异常块比例
+        return 1.0 - (diff_blocks / total_blocks)
 
-        pixels_a = list(gray_a.getdata())
-        pixels_b = list(gray_b.getdata())
-        if not pixels_a:
-            return 0.0
-
-        # 平均绝对差 -> 相似度
-        mad = sum(abs(int(pa) - int(pb)) for pa, pb in zip(pixels_a, pixels_b)) / len(pixels_a)
-        similarity = max(0.0, min(1.0, 1.0 - mad / 255.0))
-        return similarity
 
 
 def detect_consumable_by_reference(
@@ -174,7 +191,7 @@ def detect_consumable_by_reference(
     if not Path(current_view_path).exists():
         raise RobotApiError(f"当前图片不存在：{current_view_path}")
 
-    similarity = calculate_image_similarity(true_view_path, current_view_path)
+    similarity = block_based_similarity(true_view_path, current_view_path)
     has_consumable = similarity >= similarity_threshold
     return {
         "has_consumable": has_consumable,
@@ -337,7 +354,7 @@ def cmd_action_detect_consumable(args: Namespace) -> Dict[str, Any]:
     执行 perform 后抓拍当前视图，并与 references/true_view 对比判断是否有耗材。
     """
     token = _tok(args, ready=True)
-    perform_result = rc.command_perform(token, "移动到拍摄位置")
+    perform_result = rc.command_perform(token, "相机拍摄位点")
 
     camera_data = rc.action_get_camera_jpg(_tok(args, ready=True))
     jpg_path = extract_camera_jpg_path(camera_data)
