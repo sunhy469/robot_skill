@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import socket
 import time
+from numbers import Number
 from typing import Any, Dict, Optional
 
 import requests
@@ -14,6 +16,9 @@ import requests
 
 BASE_URL = "http://192.168.193.10:8300"
 API_TIMEOUT = 5.0
+AGV_TCP_IP = "192.168.193.5"
+AGV_TCP_PORT = 19206
+AGV_TCP_TIMEOUT = 5.0
 STATE_FILE = os.path.join(os.path.dirname(__file__), "robot_state.json")
 
 logger = logging.getLogger("robot_core")
@@ -41,6 +46,9 @@ class RobotBusinessError(RobotApiError):
 
 class RobotStateError(RobotApiError):
     """本地状态异常。"""
+
+class RobotTcpError(RobotApiError):
+    """TCP 协议调用异常。"""
 
 
 # =========================
@@ -162,6 +170,37 @@ def request_bytes(method: str, path: str) -> bytes:
     return resp.content
 
 
+def tcp_request_json(ip: str, port: int, payload: Dict[str, Any], timeout: float = AGV_TCP_TIMEOUT) -> Dict[str, Any]:
+    """
+    发送 TCP JSON 请求并读取响应。
+
+    协议采用 JSON 文本 + 换行分隔，便于对接原生 TCP 服务。
+    """
+    text = json.dumps(payload, ensure_ascii=False) + "\n"
+    logger.info("tcp_request_json -> %s:%s payload=%s", ip, port, payload)
+    try:
+        with socket.create_connection((ip, int(port)), timeout=timeout) as conn:
+            conn.sendall(text.encode("utf-8"))
+            conn.shutdown(socket.SHUT_WR)
+            chunks = []
+            while True:
+                data = conn.recv(4096)
+                if not data:
+                    break
+                chunks.append(data)
+    except OSError as e:
+        raise RobotTcpError(f"TCP 请求失败：{ip}:{port}，错误：{e}") from e
+
+    raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except Exception:
+        # 服务端若返回非 JSON，仍保留原始内容方便排障
+        return {"raw": raw}
+
+
 def require_token(token: str) -> None:
     if not token:
         raise RobotStateError("当前没有 token，请先初始化机器人。")
@@ -281,6 +320,55 @@ def action_agv_goto_location(token: str, location: str) -> Dict[str, Any]:
 def action_agv_load_map(token: str, map_name: str) -> Dict[str, Any]:
     """POST /actionControl/agvLoadMap/"""
     return request_json("POST", "/actionControl/agvLoadMap/", with_token(token, {"mapName": map_name}))
+
+
+def action_agv_translate(
+    dist: Number,
+    vx: Optional[Number] = None,
+    vy: Optional[Number] = None,
+    mode: Optional[int] = None,
+    ip: str = AGV_TCP_IP,
+    port: int = AGV_TCP_PORT,
+) -> Dict[str, Any]:
+    """
+    AGV 平动（直线运动）原生 TCP 接口。
+
+    对应：
+      - 请求编号: 3055 (robot_task_translate_req)
+      - 响应编号: 13055 (robot_task_translate_res)
+    """
+    if not isinstance(dist, Number):
+        raise RobotApiError("'dist' 必须为数字")
+
+    req_payload: Dict[str, Any] = {"dist": float(dist)}
+    if vx is not None:
+        if not isinstance(vx, Number):
+            raise RobotApiError("'vx' 必须为数字或留空")
+        req_payload["vx"] = float(vx)
+    if vy is not None:
+        if not isinstance(vy, Number):
+            raise RobotApiError("'vy' 必须为数字或留空")
+        req_payload["vy"] = float(vy)
+    if mode is not None:
+        if not isinstance(mode, int):
+            raise RobotApiError("'mode' 必须为整数或留空")
+        req_payload["mode"] = mode
+
+    # 模拟 netprotocol.interact(3055, msg) 的风格，统一封装命令编号与参数。
+    request_body = {"id": 3055, "msg": json.dumps(req_payload, ensure_ascii=False)}
+    response = tcp_request_json(ip=ip, port=int(port), payload=request_body)
+    ret_code = int(response.get("ret_code", 0) or 0)
+    if ret_code != 0:
+        err_msg = str(response.get("err_msg", "AGV 平动执行失败"))
+        raise RobotBusinessError(f"AGV 平动执行失败，ret_code={ret_code}，err_msg={err_msg}")
+
+    return {
+        "ip": ip,
+        "port": int(port),
+        "request_id": 3055,
+        "request": req_payload,
+        "response": response,
+    }
 
 
 def action_calibrate_location(token: str, area: str) -> Dict[str, Any]:
