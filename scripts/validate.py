@@ -55,6 +55,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("action_agv_goto_location"); _add_token(p); p.add_argument("--location", required=True)
     p = sub.add_parser("action_agv_load_map"); _add_token(p); p.add_argument("--map_name", required=True)
+    p = sub.add_parser("action_agv_translate")
+    p.add_argument("--dist", required=True, type=str, help="直线运动距离，单位 m")
+    p.add_argument("--vx", type=str, required=False, help="X 方向速度，单位 m/s")
+    p.add_argument("--vy", type=str, required=False, help="Y 方向速度，单位 m/s")
+    p.add_argument("--mode", type=str, required=False, help="0=里程模式，1=定位模式")
+    p.add_argument("--ip", default="192.168.193.5", type=str, help="AGV TCP IP")
+    p.add_argument("--port", default="19206", type=str, help="AGV TCP 端口")
     p = sub.add_parser("action_calibrate_location"); _add_token(p); p.add_argument("--area", required=True)
     p = sub.add_parser("action_grip_control"); _add_token(p); p.add_argument("--action_type", required=True); p.add_argument("--value", type=str, required=False)
     p = sub.add_parser("action_peripheral_control"); _add_token(p); p.add_argument("--peripheral", required=True); p.add_argument("--action_type", required=True); p.add_argument("--value", type=str, required=True)
