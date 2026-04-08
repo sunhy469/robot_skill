@@ -333,9 +333,9 @@ def cmd_action_agv_translate(args: Namespace) -> Dict[str, Any]:
     """通过 AGV 原生 TCP 下发平动（直线）任务。"""
     return rc.action_agv_translate(
         dist=parse_float_arg(args.dist, "dist"),
-        vx=parse_float_arg(args.vx, "vx") if args.vx is not None else None,
-        vy=parse_float_arg(args.vy, "vy") if args.vy is not None else None,
-        mode=parse_int_arg(args.mode, "mode") if args.mode is not None else None,
+        vx=parse_float_arg(args.vx, "vx", default=0.05),
+        vy=parse_float_arg(args.vy, "vy", default=0.0),
+        mode=parse_int_arg(args.mode, "mode", default=0),
         ip=args.ip,
         port=parse_int_arg(args.port, "port", default=19206),
     )
