@@ -81,7 +81,7 @@ python scripts/validate.py <subcommand> [args]
 ---
 
 ## 5. 语义映射（自然语言 -> 命令）
-- “下裝工具向前移动” → `action_agv_translate --dist 0.1`
+- “下裝工具向前移动” → `action_agv_translate --dist 0.1`（默认带 `vx=0.05 vy=0.0 mode=0`，可按需覆盖）
 - “打开夹爪” → `action_grip_control --action_type Open --value 0`
 - “关闭夹爪” → `action_grip_control --action_type Close --value 0`
 - “夹爪到指定位置” → `action_grip_control --action_type Position --value <int>`
