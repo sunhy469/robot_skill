@@ -24,3 +24,12 @@ python scripts/validate.py <subcommand> [args]
 
 - 成功：`{"success": true, "command": "...", "result": ...}`
 - 失败：`{"success": false, "error": "..."}`
+
+## 5) 执行前语义确认（建议每次都做）
+
+- 若用户说“执行一个 xxx perform”，按 `command_perform --target xxx`。
+- 若用户说“下装 AGV 向前移动”，按 `action_agv_translate`，不要误用机械臂命令。
+- 若用户说“机械臂末端向前/后/上/下/姿态调整”，按 `robot_set_pose_stepping`。
+
+> 可直接对照 `docs/command_catalog.md` 的“语义映射”章节，先消歧再执行。
+
