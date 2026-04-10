@@ -2,14 +2,14 @@
 name: skill-robot-control
 description: |
   通过 scripts/validate.py 控制汇像机器人与 AGV，统一使用 namespaced 命令。
-  本文件为“总入口”，详细指令拆分到 docs/ 子文档：快速开始、安全/故障、步进运动、命令清单。
-  触发词：初始化/夹爪/Perform/安全位/急停/相机/AGV移动/状态查询/关闭机器人/数据库与配置/脚本执行/步进模式。
+  本文件为"总入口"，详细指令拆分到 docs/ 子文档：快速开始、安全/故障、步进运动、命令清单。
+  触发词：初始化/夹爪/Perform/安全位/急停/相机/AGV 移动/状态查询/关闭机器人/数据库与配置/脚本执行/步进模式。
   排除条件：仅需原理讲解；参数缺失且无法补齐；请求绕过 token/安全门禁。
 ---
 
 # 机器人控制 Skill（OpenClaw）
 
-> 已按你的反馈继续精简：删除“区域流程”专题，并将“安全门禁 + 故障排查”合并为单文档，减少跳转成本。
+> 已按你的反馈继续精简：删除"区域流程"专题，并将"安全门禁 + 故障排查"合并为单文档，减少跳转成本。
 
 ## 1. 使用原则（必须遵守）
 
@@ -36,7 +36,7 @@ python scripts/validate.py <subcommand> [args]
 - 快速开始与执行编排：`docs/quickstart.md`
 - 安全门禁 + 故障排查：`docs/safety.md`
 - 机械臂步进运动（Pose/Joints）：`docs/motion_stepping.md`
-- 命令清单（初始化/action/command/robot）：`docs/command_catalog.md`
+- 命令清单（初始化/action/command/robot/agv 移动）：`docs/command_catalog.md`
 
 > 规则：只加载当前任务必需的专题文档，避免一次性读取所有内容。
 
@@ -83,14 +83,14 @@ python scripts/validate.py <subcommand> [args]
 
 ## 6. 高频语义映射（摘要）
 
-- “打开夹爪” → `action_grip_control --action_type Open --value 0`
-- “关闭夹爪” → `action_grip_control --action_type Close --value 0`
-- “执行区域动作/perform” → `command_perform --target <target> [--vel --acc --wait]`
-- “回安全位” → `command_return_to_safe --target Safe`
-- “急停/停机” → `robot_shutdown`
-- “停止当前运动” → `robot_stop_motion`
-- “相机抓拍” → `action_get_camera_jpg`
-- “AGV 去站点” → `action_agv_goto_location --location <name>`
+- "打开夹爪" → `action_grip_control --action_type Open --value 0`
+- "关闭夹爪" → `action_grip_control --action_type Close --value 0`
+- "执行区域动作/perform" → `command_perform --target <target> [--vel --acc --wait]`
+- "回安全位" → `command_return_to_safe --target Safe`
+- "急停/停机" → `robot_shutdown`
+- "停止当前运动" → `robot_stop_motion`
+- "相机抓拍" → `action_get_camera_jpg`
+- "AGV 去站点" → `action_agv_goto_location --location <name>`
 
 完整清单：`docs/command_catalog.md`
 
@@ -98,18 +98,9 @@ python scripts/validate.py <subcommand> [args]
 
 ## 7. 专题跳转建议
 
-- 用户提“上/下/前/后、旋转多少度、关节微调” → `docs/motion_stepping.md`
-- 用户提“报错了、参数不对、网络失败、是否可执行” → `docs/safety.md`
+- 用户提"机械臂上/下/前/后、左倾，右倾，抬头，低头，左旋，右旋多少度" → `docs/motion_stepping.md`
+- 用户提"下装工具 agv 向前移动，左转，右转" → `docs/command_catalog.md`
+- 用户提"报错了、参数不对、网络失败、是否可执行" → `docs/safety.md`
 - 任意真实运动或状态改变请求 → 先看 `docs/safety.md`
 
 ---
-
-## 8. 目录说明（opencl/skills 部署）
-
-该 `robot_skill` 目录用于放置在 `opencl/skills/` 下；当前结构：
-
-- 入口：`opencl/skills/robot_skill/SKILL.md`
-- 子文档：`opencl/skills/robot_skill/docs/*.md`
-- 脚本：`opencl/skills/robot_skill/scripts/*.py`
-
-只要整体目录移动到上述位置，文档内相对引用无需改动。
